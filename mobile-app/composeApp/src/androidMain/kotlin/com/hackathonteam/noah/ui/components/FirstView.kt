@@ -29,8 +29,6 @@ import com.hackathonteam.noah.ui.interactions.CameraPreview
 fun App() {
     val context: Context = LocalContext.current
 
-    // Collect the live sliding-window readings as Compose state.
-    // Every time AccelerometerSensor pushes a new reading the chart recomposes.
     val accelReadings by AccelerometerSensor.window.readings.collectAsState()
     val gpsReading by GpsSensor.window.readings.collectAsState()
     var cameraActive by remember { mutableStateOf(false) }
@@ -48,6 +46,7 @@ fun App() {
                     TrackingManager.stopListening()
                 } else {
                     TrackingManager.startListening(context)
+                    cameraActive = !cameraActive
                 }
             }) {
                 Text(if (TrackingManager.isTrackingActive) "Stop tracking" else "Start tracking")
@@ -75,13 +74,6 @@ fun App() {
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     windowMs = gpsWindowMs
                 )
-            }
-
-            Button(
-                onClick = { cameraActive = !cameraActive },
-                modifier = Modifier.padding(bottom = 8.dp)
-            ) {
-                Text(if (cameraActive) "Turn camera off" else "Turn camera on")
             }
 
             CameraPreview(

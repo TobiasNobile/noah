@@ -1,5 +1,6 @@
 package com.hackathonteam.noah.services.sensor
 
+import android.content.Context
 import android.hardware.SensorManager
 import android.location.LocationManager
 
@@ -16,5 +17,11 @@ interface HardwareSensorStrategy : SensorStrategy {
 /** GPS */
 interface LocationSensorStrategy : SensorStrategy {
     fun startListening(locationManager: LocationManager)
+}
+
+/** Microphone*/
+interface AudioSensorStrategy {
+    fun startListening(context: Context)
+    fun stopListening()
 }
 

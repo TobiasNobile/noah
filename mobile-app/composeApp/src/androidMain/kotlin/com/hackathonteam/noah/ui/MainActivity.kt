@@ -37,6 +37,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val microphonePermissionRequest = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            Log.d("MainActivity", "Microphone permission granted")
+        } else {
+            Log.w("MainActivity", "Microphone permission denied — Audio streaming will not work")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -58,6 +68,13 @@ class MainActivity : ComponentActivity() {
             != PackageManager.PERMISSION_GRANTED
         ) {
             cameraPermissionRequest.launch(Manifest.permission.CAMERA)
+        }
+
+        // Request microphone permission at startup if not already granted
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            microphonePermissionRequest.launch(Manifest.permission.RECORD_AUDIO)
         }
 
         setContent {

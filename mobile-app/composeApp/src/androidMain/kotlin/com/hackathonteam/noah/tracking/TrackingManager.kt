@@ -10,9 +10,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.app.ActivityCompat
+import com.hackathonteam.noah.services.sensor.AudioSensorStrategy
 import com.hackathonteam.noah.services.sensor.hardware.AccelerometerSensor
 import com.hackathonteam.noah.services.sensor.location.GpsSensor
 import com.hackathonteam.noah.services.sensor.hardware.GyroscopeSensor
+import com.hackathonteam.noah.services.sensor.audio.MicrophoneSensor
 import com.hackathonteam.noah.services.sensor.HardwareSensorStrategy
 import com.hackathonteam.noah.services.sensor.LocationSensorStrategy
 import com.hackathonteam.noah.services.sensor.SensorStrategy
@@ -31,6 +33,10 @@ object TrackingManager {
         AccelerometerSensor,
         GyroscopeSensor,
         GpsSensor
+    )
+
+    private val audioSensors: List<AudioSensorStrategy> = listOf(
+        MicrophoneSensor
     )
 
     private val classifier = ActivityClassifier()
@@ -60,6 +66,7 @@ object TrackingManager {
                     }
                 }
             }
+            audioSensors.forEach { it.startListening(context) }
         }
     }
 
@@ -67,6 +74,7 @@ object TrackingManager {
         if (isTrackingActive) {
             isTrackingActive = false
             sensors.forEach { it.stopListening() }
+            audioSensors.forEach { it.stopListening() }
             sensorManager = null
             locationManager = null
             trackingState = TrackingState.IDLE

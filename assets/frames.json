@@ -1,0 +1,20 @@
+[
+  {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "acceleration": {"x": 0.2, "y": 0.1, "z": 9.8, "magnitude": 9.81},
+    "gyroscope": {"x": 0.01, "y": 0.02, "z": 0.0, "magnitude": 0.02},
+    "image_path": "./assets/images/metro1.png"
+  },
+  {
+    "timestamp": "2024-01-15T10:30:30Z",
+    "acceleration": {"x": 1.4, "y": 0.3, "z": 9.8, "magnitude": 9.91},
+    "gyroscope": {"x": 0.0, "y": 0.0, "z": 0.45, "magnitude": 0.45},
+    "image_path": "./assets/images/metro2.png"
+  },
+  {
+    "timestamp": "2024-01-15T10:31:00Z",
+    "acceleration": {"x": 0.1, "y": 0.0, "z": 9.8, "magnitude": 9.80},
+    "gyroscope": {"x": 0.0, "y": 0.0, "z": 0.01, "magnitude": 0.01},
+    "image_path": "./assets/images/metro3.png"
+  }
+]

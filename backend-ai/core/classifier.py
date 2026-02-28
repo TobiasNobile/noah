@@ -26,6 +26,7 @@ def classify_image(image_path):
 
     lap_var = laplacian_variance(gray)
     edge_d = edge_density(gray)
+    brightness_std = gray.std()
 
     # Règles simples à ajuster selon tes données
     score = 0
@@ -34,4 +35,12 @@ def classify_image(image_path):
     if edge_d > 0.12:
         score += 1
 
-    return "DOCUMENT" if score >= 2 else "ENVIRONNEMENT"
+    label = "DOCUMENT" if score >= 2 else "ENVIRONNEMENT"
+    return {
+        "file": image_path.name,
+        "label": label,
+        "laplacian_variance": round(lap_var, 2),
+        "edge_density": round(edge_d, 4),
+        "brightness_std": round(float(brightness_std), 2),
+        "score": score
+    } 

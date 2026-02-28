@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import com.hackathonteam.noah.tracking.TrackingManager
 import com.hackathonteam.noah.ui.interactions.Greeting
@@ -24,6 +25,7 @@ import noah.composeapp.generated.resources.compose_multiplatform
 @Composable
 @Preview
 fun App() {
+    val context = LocalContext.current
 
     MaterialTheme {
         var showContent by remember { mutableStateOf(false) }
@@ -36,7 +38,11 @@ fun App() {
         ) {
             Button(onClick = {
                 showContent = !showContent
-                TrackingManager.setTracking(!TrackingManager.isTrackingActive)
+                if (TrackingManager.isTrackingActive) {
+                    TrackingManager.stopListening()
+                } else {
+                    TrackingManager.startListening(context)
+                }
             }) {
                 Text(if (TrackingManager.isTrackingActive) "Stop tracking" else "Start tracking")
             }

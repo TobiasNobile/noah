@@ -9,7 +9,8 @@ from dotenv import find_dotenv, load_dotenv
 from mistralai import Mistral
 from mistralai.models import AudioFormat
 
-DEFAULT_STT_MODEL = "voxtral-mini-transcribe-realtime-26-02"
+DEFAULT_REALTIME_MODEL = "voxtral-mini-transcribe-realtime-26-02"
+DEFAULT_BATCH_MODEL = "voxtral-mini-latest"
 
 
 class STTPipelineError(RuntimeError):
@@ -41,7 +42,7 @@ def transcribe_file(client: Mistral, audio_path: Path, model: str, language: str
 
         return response.text
     except Exception as exc:
-        raise STTPipelineError(_explain_auth_error(exc, model, mode="batch")) from exc
+        raise STTPipelineError(_explain_api_error(exc, model, mode="batch")) from exc
 
 
 async def wav_chunk_stream(audio_path: Path, chunk_ms: int) -> AsyncIterator[bytes]:
@@ -57,15 +58,25 @@ async def wav_chunk_stream(audio_path: Path, chunk_ms: int) -> AsyncIterator[byt
             await asyncio.sleep(chunk_ms / 1000)
 
 
-def _explain_auth_error(exc: Exception, model: str, mode: str) -> str:
+def _explain_api_error(exc: Exception, model: str, mode: str) -> str:
     msg = str(exc)
     lowered = msg.lower()
+
     if "401" in lowered or "unauthorized" in lowered:
         return (
             f"{mode.capitalize()} STT authentication failed (HTTP 401). "
             "Check MISTRAL_API_KEY (no extra quotes/spaces), ensure the key is active, "
             f"and confirm access to model '{model}'. Original error: {msg}"
         )
+
+    if "invalid_model" in lowered or "invalid model" in lowered:
+        suggested = DEFAULT_BATCH_MODEL if mode == "batch" else DEFAULT_REALTIME_MODEL
+        return (
+            f"{mode.capitalize()} STT received an invalid model error for '{model}'. "
+            f"Try a {mode} compatible model (for this script default: '{suggested}'). "
+            f"Original error: {msg}"
+        )
+
     return f"{mode.capitalize()} STT failed: {msg}"
 
 
@@ -115,7 +126,7 @@ async def transcribe_realtime(
 
         return "".join(text_chunks).strip()
     except Exception as exc:
-        raise STTPipelineError(_explain_auth_error(exc, model, mode="realtime")) from exc
+        raise STTPipelineError(_explain_api_error(exc, model, mode="realtime")) from exc
 
 
 def parse_args() -> argparse.Namespace:
@@ -127,7 +138,14 @@ def parse_args() -> argparse.Namespace:
         default="realtime",
         help="batch = one-shot transcription API, realtime = websocket streaming API",
     )
-    parser.add_argument("--model", default=DEFAULT_STT_MODEL, help="Mistral transcription model")
+    parser.add_argument(
+        "--model",
+        default=None,
+        help=(
+            "Mistral transcription model. If omitted, defaults to "
+            f"'{DEFAULT_REALTIME_MODEL}' in realtime mode and '{DEFAULT_BATCH_MODEL}' in batch mode."
+        ),
+    )
     parser.add_argument("--language", default=None, help="Optional language hint, e.g. en or fr")
     parser.add_argument("--chunk-ms", type=int, default=250, help="Realtime: chunk size to stream")
     parser.add_argument(
@@ -148,8 +166,10 @@ def main() -> None:
 
     client = build_client()
 
+    model = args.model or (DEFAULT_BATCH_MODEL if args.mode == "batch" else DEFAULT_REALTIME_MODEL)
+
     if args.mode == "batch":
-        transcript = transcribe_file(client, args.audio, args.model, args.language)
+        transcript = transcribe_file(client, args.audio, model, args.language)
         print(transcript)
         return
 
@@ -160,7 +180,7 @@ def main() -> None:
         transcribe_realtime(
             client,
             args.audio,
-            args.model,
+            model,
             args.chunk_ms,
             args.target_streaming_delay_ms,
         )

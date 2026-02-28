@@ -7,13 +7,14 @@
 
 ## Speech-to-Text (STT) pipeline (first building block)
 
-This repository now includes a first STT pipeline using Mistral's Voxtral realtime transcription model:
+This repository includes an STT pipeline using Mistral Voxtral APIs with mode-specific defaults:
 
-- Model default: `voxtral-mini-transcribe-realtime-26-02`
+- Realtime default model: `voxtral-mini-transcribe-realtime-26-02`
+- Batch/offline default model: `voxtral-mini-latest`
 - Script: `stt_pipeline.py`
 - Entrypoint alias: `main.py`
 
-### 1) Setup
+## 1) Setup
 
 ```bash
 python -m venv .venv
@@ -27,56 +28,50 @@ Create a `.env` file:
 MISTRAL_API_KEY=your_key_here
 ```
 
-### 2) Realtime transcription (WebSocket)
+## 2) Realtime transcription (WebSocket)
 
-Realtime mode currently streams PCM 16-bit WAV audio in chunks to the Voxtral realtime API.
+Realtime mode streams PCM 16-bit WAV chunks to the realtime endpoint.
 
 ```bash
 python main.py path/to/audio.wav --mode realtime
 ```
 
-Options:
+Realtime options:
 
-- `--chunk-ms` (default `250`): size of each audio chunk sent to API.
-- `--target-streaming-delay-ms` (default `300`): latency/quality tradeoff.
-- `--model` to override model.
+- `--chunk-ms` (default `250`)
+- `--target-streaming-delay-ms` (default `300`)
+- `--model` (optional override)
 
-### 3) Batch transcription (one-shot)
+## 3) Batch / offline transcription (one-shot)
 
-If you want to transcribe a whole file in one API request:
+Batch mode sends a complete audio file using the offline transcription endpoint.
 
 ```bash
-python main.py path/to/audio.mp3 --mode batch
+python main.py path/to/audio.wav --mode batch
 ```
 
-Options:
+Batch options:
 
-- `--language en` (or `fr`, etc.) as an optional language hint.
+- `--language en` (or `fr`, etc.) as an optional language hint
+- `--model` (optional override)
 
-## Notes for next step in your architecture
+## Troubleshooting
 
-This STT output is ready to feed into your `Agent` box from your diagram. The natural next step is:
-
-1. Stream transcript deltas into the agent loop.
-2. Keep short-term context per call/session.
-3. Route final transcript turns into LLM + memory/RAG.
-
-
-### Troubleshooting `HTTP 401` (realtime or batch)
-
-If either mode fails with an auth error like `HTTP 401` / `Unauthorized`:
+### `HTTP 401` / `Unauthorized`
 
 - verify `MISTRAL_API_KEY` is set and does not contain extra quotes/spaces,
-- ensure the key is active and has access to the transcription model you selected,
-- retry with explicit env export before running:
+- ensure the key is active and has access to the transcription model you selected.
+
+### `Invalid model` / `invalid_model`
+
+This means your selected model doesn't match the endpoint mode.
+
+- for realtime mode, use a realtime model (default in this script: `voxtral-mini-transcribe-realtime-26-02`),
+- for batch mode, use a batch/offline model (default in this script: `voxtral-mini-latest`).
+
+You can always override explicitly:
 
 ```bash
-export MISTRAL_API_KEY=your_key_here
-python main.py ./your.wav --mode realtime
-python main.py ./your.wav --mode batch
+python main.py ./audio.wav --mode batch --model voxtral-mini-latest
+python main.py ./audio.wav --mode realtime --model voxtral-mini-transcribe-realtime-26-02
 ```
-
-The script now surfaces a clearer action-oriented error message for this case.
-
-
-Batch mode now also surfaces an actionable auth message instead of the raw SDK traceback.

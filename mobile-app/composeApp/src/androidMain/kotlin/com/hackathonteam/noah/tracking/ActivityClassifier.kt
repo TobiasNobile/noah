@@ -1,7 +1,7 @@
 package com.hackathonteam.noah.tracking
 
 import android.util.Log
-import com.hackathonteam.noah.services.sensor.SensorReading
+import com.hackathonteam.noah.services.sensor.HardwareSensorReading
 
 /**
  * Classifies the user's current activity from two 5-second sliding windows.
@@ -43,8 +43,8 @@ class ActivityClassifier(
      * @return             The most probable [TrackingState].
      */
     fun classify(
-        accelWindow: List<SensorReading>,
-        gyroWindow: List<SensorReading>
+        accelWindow: List<HardwareSensorReading>,
+        gyroWindow: List<HardwareSensorReading>
     ): TrackingState {
         if (accelWindow.isEmpty()) return TrackingState.IDLE
 

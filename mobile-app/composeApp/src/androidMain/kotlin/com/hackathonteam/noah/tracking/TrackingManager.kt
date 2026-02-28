@@ -6,9 +6,9 @@ import android.location.LocationManager
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import com.hackathonteam.noah.services.sensor.AccelerometerSensor
-import com.hackathonteam.noah.services.sensor.GpsSensor
-import com.hackathonteam.noah.services.sensor.GyroscopeSensor
+import com.hackathonteam.noah.services.sensor.hardware.AccelerometerSensor
+import com.hackathonteam.noah.services.sensor.location.GpsSensor
+import com.hackathonteam.noah.services.sensor.hardware.GyroscopeSensor
 import com.hackathonteam.noah.services.sensor.HardwareSensorStrategy
 import com.hackathonteam.noah.services.sensor.LocationSensorStrategy
 import com.hackathonteam.noah.services.sensor.SensorStrategy

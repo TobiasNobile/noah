@@ -16,7 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.hackathonteam.noah.services.sensor.AccelerometerSensor
+import com.hackathonteam.noah.services.sensor.hardware.AccelerometerSensor
+import com.hackathonteam.noah.services.sensor.location.GpsSensor
 import com.hackathonteam.noah.tracking.TrackingManager
 
 @Composable
@@ -27,6 +28,7 @@ fun App() {
     // Collect the live sliding-window readings as Compose state.
     // Every time AccelerometerSensor pushes a new reading the chart recomposes.
     val accelReadings by AccelerometerSensor.window.readings.collectAsState()
+    val gpsReading by GpsSensor.window.readings.collectAsState()
 
     MaterialTheme {
         Column(
@@ -58,7 +60,15 @@ fun App() {
                     modifier  = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
-                    windowMs  = 5_000L,
+                    windowMs  = 3_000L,
+                )
+
+                GPSCoordsList(
+                    reading = gpsReading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    windowMs = 3_000L
                 )
             }
         }

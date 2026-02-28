@@ -17,7 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.hackathonteam.noah.services.sensor.SensorReading
+import com.hackathonteam.noah.services.sensor.HardwareSensorReading
 
 /**
  * A Compose Canvas time-series line chart that plots the Euclidean magnitude
@@ -28,7 +28,7 @@ import com.hackathonteam.noah.services.sensor.SensorReading
  * - The chart recomposes automatically whenever [readings] changes because the
  *   caller collects AccelerometerSensor.window.readings as Compose state.
  *
- * @param readings   Ordered list of [SensorReading] from the sliding window (oldest first).
+ * @param readings   Ordered list of [HardwareSensorReading] from the sliding window (oldest first).
  * @param windowMs   Width of the time window in ms — used to scale the X axis.
  * @param modifier   Standard Compose modifier.
  * @param lineColor  Color of the signal line.
@@ -36,9 +36,9 @@ import com.hackathonteam.noah.services.sensor.SensorReading
  */
 @Composable
 fun MagnitudeChart(
-    readings: List<SensorReading>,
+    readings: List<HardwareSensorReading>,
     modifier: Modifier = Modifier,
-    windowMs: Long = 5_000L,
+    windowMs: Long = 3_000L,
     lineColor: Color = Color(0xFF2196F3),   // Material Blue
     gridColor: Color = Color(0x33FFFFFF),
     height: Dp = 180.dp,

@@ -10,7 +10,7 @@ import kotlin.math.sqrt
  * @param y            Y-axis.
  * @param z            Z-axis.
  */
-data class SensorReading(
+data class HardwareSensorReading(
     val timestampMs: Long,
     val x: Float,
     val y: Float,

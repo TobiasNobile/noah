@@ -6,8 +6,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.ArrayDeque
 
 /**
- * Thread-safe sliding-window buffer that keeps only [SensorReading] (time,x,y,z)  entries
- * whose [SensorReading.timestampMs] falls within the last [windowMs] milliseconds.
+ * Thread-safe sliding-window buffer that keeps only [HardwareSensorReading] (time,x,y,z)  entries
+ * whose [HardwareSensorReading.timestampMs] falls within the last [windowMs] milliseconds.
  *
  * Exposes [readings] as a [StateFlow] so Compose UIs can observe live updates
  * without polling.
@@ -16,17 +16,17 @@ import java.util.ArrayDeque
  */
 class SlidingWindowBuffer(private val windowMs: Long = 3_000L) {
 
-    private val deque = ArrayDeque<SensorReading>()
+    private val deque = ArrayDeque<HardwareSensorReading>()
 
     /** Hot flow that emits a fresh snapshot after every [add] or [clear]. */
-    private val _readings = MutableStateFlow<List<SensorReading>>(emptyList())
-    val readings: StateFlow<List<SensorReading>> = _readings.asStateFlow()
+    private val _readings = MutableStateFlow<List<HardwareSensorReading>>(emptyList())
+    val readings: StateFlow<List<HardwareSensorReading>> = _readings.asStateFlow()
 
     /**
      * Add a new reading and evict any readings that have fallen outside the window.
      */
     @Synchronized
-    fun add(reading: SensorReading) {
+    fun add(reading: HardwareSensorReading) {
         deque.addLast(reading)
         evictOld(reading.timestampMs)
         _readings.value = deque.toList()
@@ -36,7 +36,7 @@ class SlidingWindowBuffer(private val windowMs: Long = 3_000L) {
      * Returns an immutable snapshot of all readings currently inside the window.
      */
     @Synchronized
-    fun snapshot(): List<SensorReading> {
+    fun snapshot(): List<HardwareSensorReading> {
         evictOld(System.currentTimeMillis())
         return deque.toList()
     }

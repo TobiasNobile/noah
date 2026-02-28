@@ -1,10 +1,13 @@
-package com.hackathonteam.noah.services.sensor
+package com.hackathonteam.noah.services.sensor.hardware
 
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.util.Log
+import com.hackathonteam.noah.services.sensor.HardwareSensorReading
+import com.hackathonteam.noah.services.sensor.HardwareSensorStrategy
+import com.hackathonteam.noah.services.sensor.SlidingWindowBuffer
 import com.hackathonteam.noah.tracking.TrackingManager
 
 object AccelerometerSensor : SensorEventListener, HardwareSensorStrategy {
@@ -29,7 +32,7 @@ object AccelerometerSensor : SensorEventListener, HardwareSensorStrategy {
 
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
-            val reading = SensorReading(
+            val reading = HardwareSensorReading(
                 timestampMs = System.currentTimeMillis(),
                 x = event.values[0],
                 y = event.values[1],

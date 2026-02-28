@@ -3,6 +3,7 @@ from mistralai import Mistral
 from pathlib import Path
 from dotenv import load_dotenv
 import base64
+import time
 
 load_dotenv()
 
@@ -21,17 +22,28 @@ def encode_image(image_path):
     
     return f"data:{mime};base64,{b64}"
 
-for image_path in Path(folder).iterdir():
+def check_envronnement(image_path):
     response = client.chat.complete(
         model="pixtral-12b-2409",
         messages=[
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": "Décris cette image."},
-                {"type": "image_url", "image_url": {"url": encode_image(image_path)}}  # base64 ici
+                {"type": "text", "text": 
+                 # Prompt here
+                 "Analyse l'environnement dans cette image. Indique-moi toutes les directions où je peux aller. Si des panneaux, document ou autres éléments lisibles sont présents sur l'image, récite-les. Le tout de manière assez concise"
+                 },
+                {"type": "image_url", "image_url": {
+                    "url": encode_image(image_path)}
+                    }
             ]
         }
     ]
     )
-    print(response.choices[0].message.content)
+
+    return response.choices[0].message.content
+
+for image_path in Path(folder).iterdir():
+    environnement_description = check_envronnement(image_path)
+    print(environnement_description)
+    time.sleep(30)

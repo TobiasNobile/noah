@@ -31,3 +31,4 @@ typing_extensions==4.15.0
 urllib3==2.6.3
 zipp==3.23.0
 websockets==15.0.1
+PyAudio==0.2.14

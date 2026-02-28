@@ -1,24 +1,13 @@
-# Noah: assistive voice + vision architecture
+# Noah: simple STT pipeline
 
-## Use cases
+This repo now provides a simple STT CLI with two modes:
 
-- Enable a visually impaired/blind person to find their way around their environment and complex places.
-- Enable illiterate or functionally illiterate people to read a document or text.
+- **Realtime** from microphone (WebSocket)
+- **Batch** from audio file (offline API)
 
-## Speech-to-Text (STT) pipeline (first building block)
+Main script: `stt_pipeline.py` (entrypoint remains `main.py`).
 
-This repository includes an STT pipeline using Mistral Voxtral APIs with mode-specific defaults:
-
-- Realtime default model: `voxtral-mini-transcribe`
-- Batch/offline default model: `voxtral-mini-latest`
-- Script: `stt_pipeline.py`
-- Entrypoint alias: `main.py`
-
-Reference docs used:
-- Realtime transcription: https://docs.mistral.ai/capabilities/audio_transcription/realtime_transcription
-- Offline transcription: https://docs.mistral.ai/capabilities/audio_transcription/offline_transcription
-
-## 1) Setup
+## Setup
 
 ```bash
 python -m venv .venv
@@ -32,60 +21,32 @@ Create a `.env` file:
 MISTRAL_API_KEY=your_key_here
 ```
 
-## 2) Realtime transcription (WebSocket)
-
-Realtime mode accepts a WAV file and normalizes audio to PCM16 mono @16kHz before streaming.
-To maximize compatibility, optional realtime session update params are skipped by default.
+## Realtime microphone transcription
 
 ```bash
-python main.py path/to/audio.wav --mode realtime
+python main.py --mode realtime
 ```
 
-Realtime options:
-
-- `--chunk-ms` (default `250`)
-- `--model` (optional override)
-- `--target-streaming-delay-ms` (optional; only set if you need to force session update)
-
-## 3) Batch / offline transcription (one-shot)
-
-Batch mode sends a complete audio file using the offline transcription endpoint.
+Options:
 
 ```bash
-python main.py path/to/audio.wav --mode batch
+python main.py --mode realtime --model voxtral-mini-transcribe-realtime-2602 --sample-rate 16000 --chunk-duration-ms 480
 ```
 
-Batch options:
-
-- `--language en` (or `fr`, etc.) as an optional language hint
-- `--model` (optional override)
-
-## Troubleshooting
-
-### `HTTP 401` / `Unauthorized`
-
-- verify `MISTRAL_API_KEY` is set and does not contain extra quotes/spaces,
-- ensure the key is active and has access to the transcription model you selected.
-
-### `Invalid model` / `does not exist for router`
-
-This means your selected model doesn't match the endpoint mode or is not enabled for your account.
-
-- for realtime mode, use a realtime model (default in this script: `voxtral-mini-transcribe`),
-- for batch mode, use a batch/offline model (default in this script: `voxtral-mini-latest`).
-
-### Realtime `1008 policy violation`
-
-This usually means realtime session settings/account policy were rejected by the server.
-
-- first try without forcing session update params:
+## Batch file transcription (kept)
 
 ```bash
-python main.py ./audio.wav --mode realtime --model voxtral-mini-transcribe
+python main.py ./audio.wav --mode batch
 ```
 
-- if needed, then test with explicit delay setting:
+Options:
 
 ```bash
-python main.py ./audio.wav --mode realtime --model voxtral-mini-transcribe --target-streaming-delay-ms 300
+python main.py ./audio.wav --mode batch --model voxtral-mini-latest --language en
 ```
+
+## Notes
+
+- Press `Ctrl+C` to stop realtime mode.
+- Realtime mode requires a working microphone.
+- Realtime mode requires `PyAudio` installed in your environment.

@@ -15,7 +15,7 @@ fun GPSCoordsList(
 ) {
     Column(modifier = modifier) {
         Text(text = "GPS Coordinates List")
-        Box() {
+        Column() {
             reading.forEach { sensorReading ->
                 Text(text = "Lat: ${sensorReading.x}, Lon: ${sensorReading.y}, Alt: ${sensorReading.z}")
             }

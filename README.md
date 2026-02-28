@@ -60,19 +60,3 @@ This STT output is ready to feed into your `Agent` box from your diagram. The na
 1. Stream transcript deltas into the agent loop.
 2. Keep short-term context per call/session.
 3. Route final transcript turns into LLM + memory/RAG.
-
-
-### Troubleshooting realtime `HTTP 401`
-
-If realtime mode fails with `server rejected WebSocket connection: HTTP 401`:
-
-- verify `MISTRAL_API_KEY` is set and does not contain extra quotes/spaces,
-- ensure the key is active and has access to realtime transcription,
-- retry with explicit env export before running:
-
-```bash
-export MISTRAL_API_KEY=your_key_here
-python main.py ./your.wav --mode realtime
-```
-
-The script now surfaces a clearer action-oriented error message for this case.

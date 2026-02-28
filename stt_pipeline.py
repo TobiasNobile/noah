@@ -5,27 +5,18 @@ import wave
 from pathlib import Path
 from typing import AsyncIterator
 
-from dotenv import find_dotenv, load_dotenv
+from dotenv import load_dotenv
 from mistralai import Mistral
 from mistralai.models import AudioFormat
 
 DEFAULT_STT_MODEL = "voxtral-mini-transcribe-realtime-26-02"
 
 
-class STTPipelineError(RuntimeError):
-    """Raised when the STT pipeline fails with an actionable message."""
-
-
 def build_client() -> Mistral:
-    dotenv_path = find_dotenv(usecwd=True)
-    load_dotenv(dotenv_path if dotenv_path else None)
-
-    api_key = (os.getenv("MISTRAL_API_KEY") or "").strip().strip('"').strip("'")
+    load_dotenv()
+    api_key = os.getenv("MISTRAL_API_KEY")
     if not api_key:
-        raise STTPipelineError(
-            "MISTRAL_API_KEY is missing. Add it to your shell env or .env file and retry."
-        )
-
+        raise RuntimeError("MISTRAL_API_KEY is missing. Add it to your environment or .env file.")
     return Mistral(api_key=api_key)
 
 
@@ -54,18 +45,6 @@ async def wav_chunk_stream(audio_path: Path, chunk_ms: int) -> AsyncIterator[byt
             await asyncio.sleep(chunk_ms / 1000)
 
 
-def _explain_realtime_error(exc: Exception, model: str) -> str:
-    msg = str(exc)
-    lowered = msg.lower()
-    if "401" in lowered or "unauthorized" in lowered:
-        return (
-            "Realtime STT authentication failed (HTTP 401). "
-            "Check MISTRAL_API_KEY (no extra quotes/spaces), ensure the key is active, "
-            f"and confirm access to realtime model '{model}'. Original error: {msg}"
-        )
-    return f"Realtime STT failed: {msg}"
-
-
 async def transcribe_realtime(
     client: Mistral,
     audio_path: Path,
@@ -79,40 +58,37 @@ async def transcribe_realtime(
         channels = wav_file.getnchannels()
 
     if sample_width != 2:
-        raise STTPipelineError(
-            "Realtime mode expects 16-bit PCM WAV input (sample width = 2 bytes)."
+        raise ValueError(
+            "Realtime pipeline currently expects 16-bit PCM WAV input (sample width = 2 bytes)."
         )
 
     if channels not in (1, 2):
-        raise STTPipelineError("Realtime mode only supports mono or stereo WAV files.")
+        raise ValueError("Only mono or stereo WAV files are supported.")
 
     audio_format = AudioFormat(encoding="pcm_s16le", sample_rate=sample_rate)
 
-    try:
-        text_chunks: list[str] = []
-        async for event in client.audio.realtime.transcribe_stream(
-            audio_stream=wav_chunk_stream(audio_path, chunk_ms),
-            model=model,
-            audio_format=audio_format,
-            target_streaming_delay_ms=target_streaming_delay_ms,
-        ):
-            event_type = getattr(event, "type", "unknown")
+    text_chunks: list[str] = []
+    async for event in client.audio.realtime.transcribe_stream(
+        audio_stream=wav_chunk_stream(audio_path, chunk_ms),
+        model=model,
+        audio_format=audio_format,
+        target_streaming_delay_ms=target_streaming_delay_ms,
+    ):
+        event_type = getattr(event, "type", "unknown")
 
-            if event_type == "transcription.text.delta":
-                print(event.text, end="", flush=True)
-                text_chunks.append(event.text)
-            elif event_type == "transcription.segment":
-                print(f"\n[segment {event.start:.2f}-{event.end:.2f}s] {event.text}")
-            elif event_type == "transcription.done":
-                print("\n\n[done]")
-                if getattr(event, "text", None):
-                    return event.text
-            elif event_type == "error":
-                raise STTPipelineError(f"Realtime transcription error: {event}")
+        if event_type == "transcription.text.delta":
+            print(event.text, end="", flush=True)
+            text_chunks.append(event.text)
+        elif event_type == "transcription.segment":
+            print(f"\n[segment {event.start:.2f}-{event.end:.2f}s] {event.text}")
+        elif event_type == "transcription.done":
+            print("\n\n[done]")
+            if getattr(event, "text", None):
+                return event.text
+        elif event_type == "error":
+            raise RuntimeError(f"Realtime transcription error: {event}")
 
-        return "".join(text_chunks).strip()
-    except Exception as exc:
-        raise STTPipelineError(_explain_realtime_error(exc, model)) from exc
+    return "".join(text_chunks).strip()
 
 
 def parse_args() -> argparse.Namespace:
@@ -151,7 +127,7 @@ def main() -> None:
         return
 
     if args.audio.suffix.lower() != ".wav":
-        raise STTPipelineError("Realtime mode currently requires a .wav file with PCM 16-bit audio.")
+        raise ValueError("Realtime mode currently requires a .wav file with PCM 16-bit audio.")
 
     transcript = asyncio.run(
         transcribe_realtime(

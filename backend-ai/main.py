@@ -19,3 +19,19 @@ def text_blob_ratio(img_gray):
         if h > 0:
             ratios.append(w / h)
     return np.mean(ratios) if ratios else 0
+
+def classify_image(image_path):
+    img = cv2.imread(image_path)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    lap_var = laplacian_variance(gray)
+    edge_d = edge_density(gray)
+
+    # Règles simples à ajuster selon tes données
+    score = 0
+    if lap_var > 500:
+        score += 1
+    if edge_d > 0.12:
+        score += 1
+
+    return "DOCUMENT" if score >= 2 else "ENVIRONNEMENT"

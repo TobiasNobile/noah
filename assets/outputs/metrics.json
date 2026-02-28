@@ -1,0 +1,14 @@
+[
+  {
+    "file": "metro.jpg",
+    "label": "ENVIRONNEMENT",
+    "entropy": 7.868,
+    "h_edge_ratio": 1.442
+  },
+  {
+    "file": "police_car.jpg",
+    "label": "ENVIRONNEMENT",
+    "entropy": 7.542,
+    "h_edge_ratio": 1.765
+  }
+]

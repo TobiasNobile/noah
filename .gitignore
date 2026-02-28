@@ -6,6 +6,9 @@ xcuserdata
 !src/**/build/
 local.properties
 .idea
+.venv
+.env
+__pycache__
 .DS_Store
 captures
 .externalNativeBuild

@@ -1,6 +1,7 @@
 package com.hackathonteam.noah.ui.components
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +22,7 @@ import com.hackathonteam.noah.config.gpsWindowMs
 import com.hackathonteam.noah.services.sensor.hardware.AccelerometerSensor
 import com.hackathonteam.noah.services.sensor.location.GpsSensor
 import com.hackathonteam.noah.tracking.TrackingManager
+import com.hackathonteam.noah.ui.interactions.CameraPreview
 
 @Composable
 @Preview
@@ -31,6 +33,7 @@ fun App() {
     // Every time AccelerometerSensor pushes a new reading the chart recomposes.
     val accelReadings by AccelerometerSensor.window.readings.collectAsState()
     val gpsReading by GpsSensor.window.readings.collectAsState()
+    var cameraActive by remember { mutableStateOf(false) }
 
     MaterialTheme {
         Column(
@@ -73,6 +76,25 @@ fun App() {
                     windowMs = gpsWindowMs
                 )
             }
+
+            Button(
+                onClick = { cameraActive = !cameraActive },
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                Text(if (cameraActive) "Turn camera off" else "Turn camera on")
+            }
+
+            CameraPreview(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                isActive = cameraActive,
+                onFrameCaptured = { jpeg ->
+                    // TODO: send compressed image to fastapi serv.
+                    Log.d("CameraPreview", "Frame captured: ${jpeg.size} bytes")
+                },
+            )
+
         }
     }
 }

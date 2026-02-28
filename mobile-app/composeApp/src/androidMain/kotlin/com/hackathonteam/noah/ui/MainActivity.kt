@@ -27,6 +27,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val cameraPermissionRequest = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            Log.d("MainActivity", "Camera permission granted")
+        } else {
+            Log.w("MainActivity", "Camera permission denied — Camera features will not work")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -41,6 +51,13 @@ class MainActivity : ComponentActivity() {
                     Manifest.permission.ACCESS_COARSE_LOCATION
                 )
             )
+        }
+
+        // Request camera permission at startup if not already granted
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            cameraPermissionRequest.launch(Manifest.permission.CAMERA)
         }
 
         setContent {

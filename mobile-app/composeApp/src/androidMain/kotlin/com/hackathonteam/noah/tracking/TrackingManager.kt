@@ -1,11 +1,15 @@
 package com.hackathonteam.noah.tracking
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.hardware.SensorManager
 import android.location.LocationManager
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.app.ActivityCompat
 import com.hackathonteam.noah.services.sensor.hardware.AccelerometerSensor
 import com.hackathonteam.noah.services.sensor.location.GpsSensor
 import com.hackathonteam.noah.services.sensor.hardware.GyroscopeSensor
@@ -41,7 +45,19 @@ object TrackingManager {
             sensors.forEach { sensor ->
                 when (sensor) {
                     is HardwareSensorStrategy  -> sensor.startListening(sm)
-                    is LocationSensorStrategy  -> sensor.startListening(lm)
+                    is LocationSensorStrategy  -> {
+                        if (ActivityCompat.checkSelfPermission(context,
+                                Manifest.permission.ACCESS_FINE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            sensor.startListening(lm)
+                        } else {
+                            Log.e("TrackingManager", "Location permissions not granted. Cannot start GPS sensor.")
+                        }
+                    }
                 }
             }
         }

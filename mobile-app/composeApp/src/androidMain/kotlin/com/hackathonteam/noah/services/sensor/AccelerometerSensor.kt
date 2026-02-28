@@ -7,9 +7,8 @@ import android.hardware.SensorManager
 import android.util.Log
 import com.hackathonteam.noah.tracking.TrackingManager
 
-object AccelerometerSensor : SensorEventListener, SensorStrategy {
+object AccelerometerSensor : SensorEventListener, HardwareSensorStrategy {
     override val window = SlidingWindowBuffer(windowMs = 5_000L)
-
     private var sensorManager: SensorManager? = null
     private var sensor: Sensor? = null
 

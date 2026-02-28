@@ -6,7 +6,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.util.Log
 
-object GyroscopeSensor : SensorEventListener, SensorStrategy {
+object GyroscopeSensor : SensorEventListener, HardwareSensorStrategy {
     override val window = SlidingWindowBuffer(windowMs = 5_000L)
 
     private var sensorManager: SensorManager? = null

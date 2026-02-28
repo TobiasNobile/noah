@@ -2,11 +2,15 @@ package com.hackathonteam.noah.tracking
 
 import android.content.Context
 import android.hardware.SensorManager
+import android.location.LocationManager
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.hackathonteam.noah.services.sensor.AccelerometerSensor
+import com.hackathonteam.noah.services.sensor.GpsSensor
 import com.hackathonteam.noah.services.sensor.GyroscopeSensor
+import com.hackathonteam.noah.services.sensor.HardwareSensorStrategy
+import com.hackathonteam.noah.services.sensor.LocationSensorStrategy
 import com.hackathonteam.noah.services.sensor.SensorStrategy
 
 object TrackingManager {
@@ -15,12 +19,14 @@ object TrackingManager {
     var trackingState by mutableStateOf<TrackingState>(TrackingState.IDLE)
         private set
 
-    // Single SensorManager shared by all sensors
+    // System services resolved once and shared with all sensors
     private var sensorManager: SensorManager? = null
+    private var locationManager: LocationManager? = null
 
     private val sensors: List<SensorStrategy> = listOf(
         AccelerometerSensor,
-        GyroscopeSensor
+        GyroscopeSensor,
+        GpsSensor
     )
 
     private val classifier = ActivityClassifier()
@@ -28,9 +34,16 @@ object TrackingManager {
     fun startListening(context: Context) {
         if (!isTrackingActive) {
             isTrackingActive = true
-            val retrievedSm = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-            sensorManager = retrievedSm
-            sensors.forEach { it.startListening(retrievedSm) }
+            val sm = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+            val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            sensorManager = sm
+            locationManager = lm
+            sensors.forEach { sensor ->
+                when (sensor) {
+                    is HardwareSensorStrategy  -> sensor.startListening(sm)
+                    is LocationSensorStrategy  -> sensor.startListening(lm)
+                }
+            }
         }
     }
 
@@ -39,6 +52,7 @@ object TrackingManager {
             isTrackingActive = false
             sensors.forEach { it.stopListening() }
             sensorManager = null
+            locationManager = null
             trackingState = TrackingState.IDLE
         }
     }

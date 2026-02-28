@@ -1,11 +1,11 @@
 package com.hackathonteam.noah.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -15,20 +15,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.hackathonteam.noah.services.sensor.AccelerometerSensor
 import com.hackathonteam.noah.tracking.TrackingManager
-import com.hackathonteam.noah.ui.interactions.Greeting
-import org.jetbrains.compose.resources.painterResource
-
-import noah.composeapp.generated.resources.Res
-import noah.composeapp.generated.resources.compose_multiplatform
 
 @Composable
 @Preview
 fun App() {
-    val context = LocalContext.current
+    val context: Context = LocalContext.current
+
+    // Collect the live sliding-window readings as Compose state.
+    // Every time AccelerometerSensor pushes a new reading the chart recomposes.
+    val accelReadings by AccelerometerSensor.window.readings.collectAsState()
 
     MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
         Column(
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.primaryContainer)
@@ -37,7 +37,6 @@ fun App() {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Button(onClick = {
-                showContent = !showContent
                 if (TrackingManager.isTrackingActive) {
                     TrackingManager.stopListening()
                 } else {
@@ -45,6 +44,22 @@ fun App() {
                 }
             }) {
                 Text(if (TrackingManager.isTrackingActive) "Stop tracking" else "Start tracking")
+            }
+
+            if (TrackingManager.isTrackingActive) {
+                Text(
+                    text = "Activity: ${TrackingManager.trackingState.name}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+
+                MagnitudeChart(
+                    readings  = accelReadings,
+                    modifier  = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    windowMs  = 5_000L,
+                )
             }
         }
     }

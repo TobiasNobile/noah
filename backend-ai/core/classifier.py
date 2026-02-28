@@ -20,6 +20,21 @@ def text_blob_ratio(img_gray):
             ratios.append(w / h)
     return np.mean(ratios) if ratios else 0
 
+def horizontal_edge_ratio(gray):
+    """
+    Dans un document, les bords sont majoritairement horizontaux (lignes de texte).
+    Dans un environnement, les bords sont dans toutes les directions.
+    """
+    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0)  # bords verticaux
+    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1)  # bords horizontaux
+    
+    h_energy = np.sum(np.abs(sobely))
+    v_energy = np.sum(np.abs(sobelx))
+    
+    # Un document → ratio proche de 1 (équilibré mais régulier)
+    # Une scène → ratio très variable
+    return h_energy / (v_energy + 1e-6)
+
 def classify_image(image_path):
     img = cv2.imread(image_path)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)

@@ -1,12 +1,9 @@
-# Noah: simple realtime STT pipeline
+# Noah: simple STT pipeline
 
-This repo now uses a **simple realtime speech-to-text flow** based on the Mistral realtime transcription pattern (microphone stream over websocket).
+This repo now provides a simple STT CLI with two modes:
 
-## What it does
-
-- Captures microphone audio as PCM16 mono using PyAudio.
-- Streams chunks to Mistral realtime transcription.
-- Prints transcript deltas live.
+- **Realtime** from microphone (WebSocket)
+- **Batch** from audio file (offline API)
 
 Main script: `stt_pipeline.py` (entrypoint remains `main.py`).
 
@@ -24,21 +21,32 @@ Create a `.env` file:
 MISTRAL_API_KEY=your_key_here
 ```
 
-## Run realtime microphone transcription
+## Realtime microphone transcription
 
 ```bash
-python main.py
+python main.py --mode realtime
 ```
 
-With options:
+Options:
 
 ```bash
-python main.py --model voxtral-mini-transcribe-realtime-2602 --sample-rate 16000 --chunk-duration-ms 480
+python main.py --mode realtime --model voxtral-mini-transcribe-realtime-2602 --sample-rate 16000 --chunk-duration-ms 480
+```
+
+## Batch file transcription (kept)
+
+```bash
+python main.py ./audio.wav --mode batch
+```
+
+Options:
+
+```bash
+python main.py ./audio.wav --mode batch --model voxtral-mini-latest --language en
 ```
 
 ## Notes
 
-- Press `Ctrl+C` to stop.
-- Requires a working microphone.
-- Requires `PyAudio` installed in your environment.
-- If you get a model error, switch `--model` to one available for your account.
+- Press `Ctrl+C` to stop realtime mode.
+- Realtime mode requires a working microphone.
+- Realtime mode requires `PyAudio` installed in your environment.

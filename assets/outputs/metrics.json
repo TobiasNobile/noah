@@ -1,18 +1,14 @@
 [
   {
     "file": "metro.jpg",
-    "label": "DOCUMENT",
-    "laplacian_variance": 5080.71,
-    "edge_density": 0.206,
-    "brightness_std": 71.9,
-    "score": 2
+    "label": "ENVIRONNEMENT",
+    "entropy": 7.868,
+    "h_edge_ratio": 1.442
   },
   {
     "file": "police_car.jpg",
-    "label": "DOCUMENT",
-    "laplacian_variance": 4362.27,
-    "edge_density": 0.1445,
-    "brightness_std": 75.7,
-    "score": 2
+    "label": "ENVIRONNEMENT",
+    "entropy": 7.542,
+    "h_edge_ratio": 1.765
   }
 ]

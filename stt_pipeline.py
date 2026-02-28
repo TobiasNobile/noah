@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import audioop
 import os
 import wave
 from pathlib import Path
@@ -12,6 +13,7 @@ from mistralai.models import AudioFormat
 # Realtime model aligned with Mistral realtime transcription docs.
 DEFAULT_REALTIME_MODEL = "voxtral-mini-transcribe"
 DEFAULT_BATCH_MODEL = "voxtral-mini-latest"
+DEFAULT_REALTIME_SAMPLE_RATE = 16000
 
 
 class STTPipelineError(RuntimeError):
@@ -45,17 +47,41 @@ def transcribe_file(client: Mistral, audio_path: Path, model: str, language: str
         raise STTPipelineError(_explain_api_error(exc, model, mode="batch")) from exc
 
 
-async def wav_chunk_stream(audio_path: Path, chunk_ms: int) -> AsyncIterator[bytes]:
+def load_normalized_wav(audio_path: Path, target_rate: int = DEFAULT_REALTIME_SAMPLE_RATE) -> bytes:
+    """Read WAV file and normalize to PCM16 mono at target_rate for realtime STT."""
     with wave.open(str(audio_path), "rb") as wav_file:
-        frame_rate = wav_file.getframerate()
-        chunk_frames = max(1, int(frame_rate * (chunk_ms / 1000)))
+        source_rate = wav_file.getframerate()
+        source_width = wav_file.getsampwidth()
+        source_channels = wav_file.getnchannels()
+        raw = wav_file.readframes(wav_file.getnframes())
 
-        while True:
-            chunk = wav_file.readframes(chunk_frames)
-            if not chunk:
-                break
-            yield chunk
-            await asyncio.sleep(chunk_ms / 1000)
+    if source_channels not in (1, 2):
+        raise STTPipelineError("Realtime mode only supports mono or stereo WAV files.")
+
+    # Convert to PCM16 if needed.
+    if source_width != 2:
+        raw = audioop.lin2lin(raw, source_width, 2)
+
+    # Downmix stereo to mono.
+    if source_channels == 2:
+        raw = audioop.tomono(raw, 2, 0.5, 0.5)
+
+    # Resample to a safe realtime rate.
+    if source_rate != target_rate:
+        raw, _ = audioop.ratecv(raw, 2, 1, source_rate, target_rate, None)
+
+    return raw
+
+
+async def pcm_chunk_stream(pcm_bytes: bytes, sample_rate: int, chunk_ms: int) -> AsyncIterator[bytes]:
+    bytes_per_second = sample_rate * 2  # mono, PCM16
+    chunk_size = max(2, int(bytes_per_second * (chunk_ms / 1000)))
+    if chunk_size % 2 != 0:
+        chunk_size += 1
+
+    for i in range(0, len(pcm_bytes), chunk_size):
+        yield pcm_bytes[i : i + chunk_size]
+        await asyncio.sleep(chunk_ms / 1000)
 
 
 def _explain_api_error(exc: Exception, model: str, mode: str) -> str:
@@ -67,6 +93,14 @@ def _explain_api_error(exc: Exception, model: str, mode: str) -> str:
             f"{mode.capitalize()} STT authentication failed (HTTP 401). "
             "Check MISTRAL_API_KEY (no extra quotes/spaces), ensure the key is active, "
             f"and confirm access to model '{model}'. Original error: {msg}"
+        )
+
+    if "1008" in lowered or "policy violation" in lowered:
+        return (
+            f"{mode.capitalize()} STT websocket policy violation (1008). "
+            "This usually means realtime session settings or account policy were rejected. "
+            "This script sends normalized PCM16 mono @16kHz and avoids optional session updates by default. "
+            f"Verify realtime access for model '{model}'. Original error: {msg}"
         )
 
     if "invalid_model" in lowered or "invalid model" in lowered or "does not exist for router" in lowered:
@@ -86,31 +120,26 @@ async def transcribe_realtime(
     audio_path: Path,
     model: str,
     chunk_ms: int,
-    target_streaming_delay_ms: int,
+    target_streaming_delay_ms: int | None,
 ) -> str:
-    with wave.open(str(audio_path), "rb") as wav_file:
-        sample_rate = wav_file.getframerate()
-        sample_width = wav_file.getsampwidth()
-        channels = wav_file.getnchannels()
+    normalized_pcm = load_normalized_wav(audio_path, target_rate=DEFAULT_REALTIME_SAMPLE_RATE)
+    audio_stream = pcm_chunk_stream(normalized_pcm, DEFAULT_REALTIME_SAMPLE_RATE, chunk_ms)
 
-    if sample_width != 2:
-        raise STTPipelineError(
-            "Realtime mode expects 16-bit PCM WAV input (sample width = 2 bytes)."
+    stream_kwargs = {
+        "audio_stream": audio_stream,
+        "model": model,
+    }
+
+    # Only send optional session update fields when explicitly requested.
+    if target_streaming_delay_ms is not None:
+        stream_kwargs["audio_format"] = AudioFormat(
+            encoding="pcm_s16le", sample_rate=DEFAULT_REALTIME_SAMPLE_RATE
         )
-
-    if channels not in (1, 2):
-        raise STTPipelineError("Realtime mode only supports mono or stereo WAV files.")
-
-    audio_format = AudioFormat(encoding="pcm_s16le", sample_rate=sample_rate)
+        stream_kwargs["target_streaming_delay_ms"] = target_streaming_delay_ms
 
     try:
         text_chunks: list[str] = []
-        async for event in client.audio.realtime.transcribe_stream(
-            audio_stream=wav_chunk_stream(audio_path, chunk_ms),
-            model=model,
-            audio_format=audio_format,
-            target_streaming_delay_ms=target_streaming_delay_ms,
-        ):
+        async for event in client.audio.realtime.transcribe_stream(**stream_kwargs):
             event_type = getattr(event, "type", "unknown")
 
             if event_type == "transcription.text.delta":
@@ -152,8 +181,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--target-streaming-delay-ms",
         type=int,
-        default=300,
-        help="Realtime: server latency/quality tradeoff target",
+        default=None,
+        help=(
+            "Realtime: optional server latency/quality tradeoff target. "
+            "If unset, session update is skipped to maximize compatibility."
+        ),
     )
 
     return parser.parse_args()
@@ -175,7 +207,7 @@ def main() -> None:
         return
 
     if args.audio.suffix.lower() != ".wav":
-        raise STTPipelineError("Realtime mode currently requires a .wav file with PCM 16-bit audio.")
+        raise STTPipelineError("Realtime mode currently requires a .wav file as input.")
 
     transcript = asyncio.run(
         transcribe_realtime(

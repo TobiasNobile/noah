@@ -34,7 +34,8 @@ MISTRAL_API_KEY=your_key_here
 
 ## 2) Realtime transcription (WebSocket)
 
-Realtime mode streams PCM 16-bit WAV chunks to the realtime endpoint.
+Realtime mode accepts a WAV file and normalizes audio to PCM16 mono @16kHz before streaming.
+To maximize compatibility, optional realtime session update params are skipped by default.
 
 ```bash
 python main.py path/to/audio.wav --mode realtime
@@ -43,8 +44,8 @@ python main.py path/to/audio.wav --mode realtime
 Realtime options:
 
 - `--chunk-ms` (default `250`)
-- `--target-streaming-delay-ms` (default `300`)
 - `--model` (optional override)
+- `--target-streaming-delay-ms` (optional; only set if you need to force session update)
 
 ## 3) Batch / offline transcription (one-shot)
 
@@ -73,9 +74,18 @@ This means your selected model doesn't match the endpoint mode or is not enabled
 - for realtime mode, use a realtime model (default in this script: `voxtral-mini-transcribe`),
 - for batch mode, use a batch/offline model (default in this script: `voxtral-mini-latest`).
 
-You can always override explicitly:
+### Realtime `1008 policy violation`
+
+This usually means realtime session settings/account policy were rejected by the server.
+
+- first try without forcing session update params:
 
 ```bash
-python main.py ./audio.wav --mode batch --model voxtral-mini-latest
 python main.py ./audio.wav --mode realtime --model voxtral-mini-transcribe
+```
+
+- if needed, then test with explicit delay setting:
+
+```bash
+python main.py ./audio.wav --mode realtime --model voxtral-mini-transcribe --target-streaming-delay-ms 300
 ```

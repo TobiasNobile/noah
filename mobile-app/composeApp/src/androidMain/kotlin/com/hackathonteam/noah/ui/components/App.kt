@@ -1,4 +1,4 @@
-package com.hackathonteam.noah
+package com.hackathonteam.noah.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
@@ -14,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.hackathonteam.noah.tracking.TrackingManager
+import com.hackathonteam.noah.ui.interactions.Greeting
 import org.jetbrains.compose.resources.painterResource
 
 import noah.composeapp.generated.resources.Res
@@ -22,6 +24,7 @@ import noah.composeapp.generated.resources.compose_multiplatform
 @Composable
 @Preview
 fun App() {
+
     MaterialTheme {
         var showContent by remember { mutableStateOf(false) }
         Column(
@@ -31,18 +34,11 @@ fun App() {
                 .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Button(onClick = { showContent = !showContent }) {
-                Text("Click me!")
-            }
-            AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
-                }
+            Button(onClick = {
+                showContent = !showContent
+                TrackingManager.setTracking(!TrackingManager.isTrackingActive)
+            }) {
+                Text(if (TrackingManager.isTrackingActive) "Stop tracking" else "Start tracking")
             }
         }
     }

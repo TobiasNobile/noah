@@ -1,4 +1,4 @@
-package com.hackathonteam.noah
+package com.hackathonteam.noah.ui.interactions
 
 import android.os.Build
 

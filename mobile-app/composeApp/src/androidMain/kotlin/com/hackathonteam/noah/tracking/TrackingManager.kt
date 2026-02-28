@@ -1,16 +1,14 @@
 package com.hackathonteam.noah.tracking
 
-class TrackingManager {
+import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 
-    private var instance: TrackingManager ? = null
+object TrackingManager {
+
     private var state: TrackingState = TrackingState.IDLE
-
-    fun getInstance(): TrackingManager {
-        if(instance == null){
-            instance = TrackingManager()
-        }
-        return instance!!
-    }
+    var isTrackingActive by mutableStateOf(false)
 
     fun getState(): TrackingState {
         return state
@@ -19,4 +17,10 @@ class TrackingManager {
     fun setState(state: TrackingState) {
         this.state = state
     }
+
+    fun setTracking(active: Boolean) {
+        Log.d("TrackingManager", "setTracking: $active")
+        isTrackingActive = active
+    }
+
 }

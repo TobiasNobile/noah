@@ -18,6 +18,7 @@ import com.hackathonteam.noah.services.sensor.audio.MicrophoneSensor
 import com.hackathonteam.noah.services.sensor.HardwareSensorStrategy
 import com.hackathonteam.noah.services.sensor.LocationSensorStrategy
 import com.hackathonteam.noah.services.sensor.SensorStrategy
+import com.hackathonteam.noah.services.streaming.StreamDispatcher
 
 object TrackingManager {
     var isTrackingActive by mutableStateOf(false)
@@ -67,6 +68,7 @@ object TrackingManager {
                 }
             }
             audioSensors.forEach { it.startListening(context) }
+            StreamDispatcher.start()
         }
     }
 
@@ -75,6 +77,7 @@ object TrackingManager {
             isTrackingActive = false
             sensors.forEach { it.stopListening() }
             audioSensors.forEach { it.stopListening() }
+            StreamDispatcher.stop()
             sensorManager = null
             locationManager = null
             trackingState = TrackingState.IDLE

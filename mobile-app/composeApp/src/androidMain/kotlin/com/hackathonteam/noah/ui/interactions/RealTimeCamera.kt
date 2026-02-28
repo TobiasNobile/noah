@@ -20,9 +20,20 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 private const val TAG = "CameraPreview"
 private const val SEND_REQUEST_COOLDOWN_MS = 2000L
+
+/**
+ * Latest JPEG-compressed camera frame, updated every time [CameraPreview] captures one.
+ * [StreamDispatcher] reads this to include the latest frame in each [StreamPayload].
+ * `null` when the camera is inactive or no frame has been captured yet.
+ */
+private val _latestFrame = MutableStateFlow<ByteArray?>(null)
+val latestCameraFrame: StateFlow<ByteArray?> = _latestFrame.asStateFlow()
 
 /**
  * Compresses an [ImageProxy] (YUV_420_888) to a JPEG [ByteArray] at 60 % quality.
@@ -130,10 +141,11 @@ fun CameraPreview(
                             imageProxy.close()
                             return@setAnalyzer
                         } else {
-                            try {
-                                val jpeg = compressFrame(imageProxy)
-                                Log.d(TAG, "Frame captured: ${jpeg.size} bytes")
-                                onFrameCaptured(jpeg)
+                        try {
+                            val jpeg = compressFrame(imageProxy)
+                            _latestFrame.value = jpeg
+                            Log.d(TAG, "Frame captured: ${jpeg.size} bytes")
+                            onFrameCaptured(jpeg)
                             } catch (e: Exception) {
                                 Log.e(TAG, "Frame compression failed", e)
                             } finally {

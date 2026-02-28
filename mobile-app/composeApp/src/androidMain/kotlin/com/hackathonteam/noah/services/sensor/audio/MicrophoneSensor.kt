@@ -13,6 +13,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -20,7 +23,7 @@ private const val TAG = "MicrophoneSensor"
 
 /**
  * Captures raw PCM audio from the device microphone and streams it as
- * [ByteArray] chunks via [onAudioChunk].
+ * [ByteArray] chunks via [audioChunks].
  *
  * Audio configuration
  * -------------------
@@ -28,9 +31,8 @@ private const val TAG = "MicrophoneSensor"
  * - Rate    : 16 000 Hz
  * - Channel : MONO
  *
- * Each chunk delivered to [onAudioChunk] is a raw PCM frame of [CHUNK_SIZE_BYTES]
- * bytes. The callback runs on a dedicated IO coroutine — do NOT touch the UI or
- * Compose state directly from inside it.
+ * Each chunk emitted on [audioChunks] is a raw PCM frame of [CHUNK_SIZE_BYTES]
+ * bytes. Emission happens on a dedicated IO coroutine
  *
  * Usage
  * -----
@@ -55,13 +57,8 @@ object MicrophoneSensor : AudioSensorStrategy {
     private var captureJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    /**
-     * Called for every captured audio chunk (~100 ms of PCM16 mono audio at 16 kHz).
-     */
-    var onAudioChunk: (ByteArray) -> Unit = { pcm ->
-        Log.d(TAG, "Audio chunk: ${pcm.size} bytes")
-        /// TODO: implement callback that send audio for the fastapi serv
-    }
+    private val _audioChunks = MutableSharedFlow<ByteArray>(extraBufferCapacity = 64)
+    val audioChunks: SharedFlow<ByteArray> = _audioChunks.asSharedFlow()
 
     override fun startListening(context: Context) {
         if (audioRecord != null) {
@@ -107,7 +104,11 @@ object MicrophoneSensor : AudioSensorStrategy {
             while (isActive) {
                 val bytesRead = record.read(chunk, 0, chunk.size)
                 when {
-                    bytesRead > 0 -> onAudioChunk(chunk.copyOf(bytesRead))
+                    bytesRead > 0 -> {
+                        val pcm = chunk.copyOf(bytesRead)
+                        _audioChunks.emit(pcm)
+                        Log.d(TAG, "Audio chunk emitted: ${pcm.size} bytes")
+                    }
                     bytesRead == AudioRecord.ERROR_INVALID_OPERATION ->
                         Log.e(TAG, "read() — ERROR_INVALID_OPERATION")
                     bytesRead == AudioRecord.ERROR_BAD_VALUE ->

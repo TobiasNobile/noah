@@ -37,26 +37,22 @@ Sois très concis, le texte sera lu à voix haute."""
         ]
 
     def ask(self, question, frame:dict):
-        accel = frame["acceleration"]
-        gyro = frame["gyroscope"]
+        gps = frame["gps"]
         image_path = frame["image_path"]
 
         self.history.append({
             "role": "user",
             "content": [
-                {
-                    "type": "text",
-                    "text": f""" {question}
-
-    Données capteurs :
-    - Accéléromètre : x={accel['x']}, y={accel['y']}, z={accel['z']}, magnitude={accel['magnitude']}
-    - Gyroscope : x={gyro['x']}, y={gyro['y']}, z={gyro['z']}, magnitude={gyro['magnitude']}"""
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {"url": encode_image(image_path)}
-                }
-            ]
+            {
+                "type": "text",
+                "text": f"""{question}
+GPS : lat={gps['lat']}, lon={gps['lon']}, altitude={gps['altitude']}m, précision=±{gps['accuracy']}m"""
+            },
+            {
+                "type": "image_url",
+                "image_url": {"url": encode_image(image_path)}
+            }
+        ]
         })
 
         response = client.chat.complete(model="pixtral-12b-2409", messages=self.history, temperature=0.1)

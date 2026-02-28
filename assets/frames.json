@@ -1,20 +1,17 @@
 [
   {
     "timestamp": "2024-01-15T10:30:00Z",
-    "acceleration": {"x": 0.2, "y": 0.1, "z": 9.8, "magnitude": 9.81},
-    "gyroscope": {"x": 0.01, "y": 0.02, "z": 0.0, "magnitude": 0.02},
+    "gps": {"lat": 48.856614, "lon": 2.352222, "altitude": 35.2, "accuracy": 4.5},
     "image_path": "./assets/images/metro1.png"
   },
   {
     "timestamp": "2024-01-15T10:30:30Z",
-    "acceleration": {"x": 1.4, "y": 0.3, "z": 9.8, "magnitude": 9.91},
-    "gyroscope": {"x": 0.0, "y": 0.0, "z": 0.45, "magnitude": 0.45},
+    "gps": {"lat": 48.856780, "lon": 2.352401, "altitude": 35.2, "accuracy": 4.2},
     "image_path": "./assets/images/metro2.png"
   },
   {
     "timestamp": "2024-01-15T10:31:00Z",
-    "acceleration": {"x": 0.1, "y": 0.0, "z": 9.8, "magnitude": 9.80},
-    "gyroscope": {"x": 0.0, "y": 0.0, "z": 0.01, "magnitude": 0.01},
+    "gps": {"lat": 48.856901, "lon": 2.352543, "altitude": 35.1, "accuracy": 4.8},
     "image_path": "./assets/images/metro3.png"
   }
 ]

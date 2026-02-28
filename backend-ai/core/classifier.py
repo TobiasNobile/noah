@@ -55,7 +55,7 @@ def classify_image(image_path):
 
     is_document = entropy < 6.0 and (0.8 < h_ratio < 1.2)
 
-    label = "DOCUMENT" if score >= 2 else "ENVIRONNEMENT"
+    label = "DOCUMENT" if is_document else "ENVIRONNEMENT"
     return {
         "file": image_path.name,
         "label": label,

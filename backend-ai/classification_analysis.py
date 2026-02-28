@@ -4,19 +4,19 @@ import json
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-ASSETS_DIR = ROOT_DIR / "assets" / "outputs"
+METRICS_PATH = ROOT_DIR / "assets" / "outputs" / "metrics.json"
 
-with open("assets/outputs/metrics.json") as f:
+with open(METRICS_PATH) as f:
     data = json.load(f)
 
 docs = [d for d in data if d["label"] == "DOCUMENT"]
 envs = [d for d in data if d["label"] == "ENVIRONNEMENT"]
 
-metrics = ["laplacian_variance", "edge_density", "brightness_std"]
-seuils  = [500, 0.12, 60]
-labels  = ["Laplacian Variance", "Edge Density", "Brightness Std"]
+metrics = ["entropy",  "h_edge_ratio"]
+seuils  = [6.0, 1.0]
+labels  = ["Entropie (< 6 → Document)", "H/V Edge Ratio (0.8–1.2 → Document)"]
 
-fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+fig, axes = plt.subplots(1, 2, figsize=(15, 4))
 fig.suptitle("Distribution des métriques par classe", fontsize=14, fontweight="bold")
 
 for ax, metric, seuil, label in zip(axes, metrics, seuils, labels):

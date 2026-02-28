@@ -58,7 +58,7 @@ def classify_image(image_path):
     label = "DOCUMENT" if is_document else "ENVIRONNEMENT"
     return {
         "file": image_path.name,
-        "label": label,
+        "label_pred": label,
         "entropy": round(float(entropy), 3),
         "h_edge_ratio": round(float(h_ratio), 3),
     }

@@ -22,10 +22,18 @@ def encode_image(image_path):
     
     return f"data:{mime};base64,{b64}"
 
+objectif = "Sortie métro ligne 1, direction La Défense"
+
 history = [
     {
         "role": "system",
-        "content": "Analyse l'environnement dans cette image. Indique-moi toutes les directions où je peux aller. Si des panneaux, documents ou autres éléments lisibles sont présents sur l'image, récite-les. Le tout de manière très concise, pour être récité à haute voix."
+        "content":f"""Tu aides une personne malvoyante à naviguer vers : {objectif}.
+À chaque frame, tu dois :
+1. Décrire brièvement l'environnement
+2. Dire si elle avance vers l'objectif ou non
+3. Donner la prochaine action concrète (ex: 'Tourne à gauche', 'Continue tout droit', 'Demi-tour')
+Si tu n'es pas certain à 100% qu'un panneau ou texte est présent et lisible, ne le mentionne pas. Ne suppose jamais le contenu d'un panneau, récite uniquement ce qui est explicitement visible et lisible.
+Sois très concis, le texte sera lu à voix haute."""
     }
 ]
 
@@ -37,7 +45,7 @@ for i, image_path in enumerate(images):
             {"type": "image_url", "image_url": {"url": encode_image(image_path)}}
         ]
     })
-    response = client.chat.complete(model="pixtral-12b-2409", messages=history)
+    response = client.chat.complete(model="pixtral-12b-2409", messages=history, temperature=0.1)
     answer = response.choices[0].message.content
     print(answer)
     history.append({"role": "assistant", "content": answer})

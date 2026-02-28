@@ -22,28 +22,24 @@ def encode_image(image_path):
     
     return f"data:{mime};base64,{b64}"
 
-def check_envronnement(image_path):
-    response = client.chat.complete(
-        model="pixtral-12b-2409",
-        messages=[
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": 
-                 # Prompt here
-                 "Analyse l'environnement dans cette image. Indique-moi toutes les directions où je peux aller. Si des panneaux, document ou autres éléments lisibles sont présents sur l'image, récite-les. Le tout de manière assez concise"
-                 },
-                {"type": "image_url", "image_url": {
-                    "url": encode_image(image_path)}
-                    }
-            ]
-        }
-    ]
-    )
+history = [
+    {
+        "role": "system",
+        "content": "Analyse l'environnement dans cette image. Indique-moi toutes les directions où je peux aller. Si des panneaux, documents ou autres éléments lisibles sont présents sur l'image, récite-les. Le tout de manière très concise, pour être récité à haute voix."
+    }
+]
 
-    return response.choices[0].message.content
-
-for image_path in Path(folder).iterdir():
-    environnement_description = check_envronnement(image_path)
-    print(environnement_description)
-    time.sleep(30)
+images = sorted(Path(folder).iterdir())
+for i, image_path in enumerate(images):
+    history.append({
+        "role": "user",
+        "content": [
+            {"type": "image_url", "image_url": {"url": encode_image(image_path)}}
+        ]
+    })
+    response = client.chat.complete(model="pixtral-12b-2409", messages=history)
+    answer = response.choices[0].message.content
+    print(answer)
+    history.append({"role": "assistant", "content": answer})
+    if i < len(images) - 1:
+        time.sleep(30)

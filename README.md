@@ -1,4 +1,4 @@
-# Noah : enabling visually impaires/bllind people to interact with their environnement
+# Noah : enabling visually impaires/blind people to interact with their environnement
 
 ## Use cases
 

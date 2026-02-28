@@ -9,10 +9,14 @@
 
 This repository includes an STT pipeline using Mistral Voxtral APIs with mode-specific defaults:
 
-- Realtime default model: `voxtral-mini-transcribe-realtime-26-02`
+- Realtime default model: `voxtral-mini-transcribe`
 - Batch/offline default model: `voxtral-mini-latest`
 - Script: `stt_pipeline.py`
 - Entrypoint alias: `main.py`
+
+Reference docs used:
+- Realtime transcription: https://docs.mistral.ai/capabilities/audio_transcription/realtime_transcription
+- Offline transcription: https://docs.mistral.ai/capabilities/audio_transcription/offline_transcription
 
 ## 1) Setup
 
@@ -62,16 +66,16 @@ Batch options:
 - verify `MISTRAL_API_KEY` is set and does not contain extra quotes/spaces,
 - ensure the key is active and has access to the transcription model you selected.
 
-### `Invalid model` / `invalid_model`
+### `Invalid model` / `does not exist for router`
 
-This means your selected model doesn't match the endpoint mode.
+This means your selected model doesn't match the endpoint mode or is not enabled for your account.
 
-- for realtime mode, use a realtime model (default in this script: `voxtral-mini-transcribe-realtime-26-02`),
+- for realtime mode, use a realtime model (default in this script: `voxtral-mini-transcribe`),
 - for batch mode, use a batch/offline model (default in this script: `voxtral-mini-latest`).
 
 You can always override explicitly:
 
 ```bash
 python main.py ./audio.wav --mode batch --model voxtral-mini-latest
-python main.py ./audio.wav --mode realtime --model voxtral-mini-transcribe-realtime-26-02
+python main.py ./audio.wav --mode realtime --model voxtral-mini-transcribe
 ```

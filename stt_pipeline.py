@@ -9,7 +9,8 @@ from dotenv import find_dotenv, load_dotenv
 from mistralai import Mistral
 from mistralai.models import AudioFormat
 
-DEFAULT_REALTIME_MODEL = "voxtral-mini-transcribe-realtime-26-02"
+# Realtime model aligned with Mistral realtime transcription docs.
+DEFAULT_REALTIME_MODEL = "voxtral-mini-transcribe"
 DEFAULT_BATCH_MODEL = "voxtral-mini-latest"
 
 
@@ -39,7 +40,6 @@ def transcribe_file(client: Mistral, audio_path: Path, model: str, language: str
                 language=language,
                 timestamp_granularities=["segment"],
             )
-
         return response.text
     except Exception as exc:
         raise STTPipelineError(_explain_api_error(exc, model, mode="batch")) from exc
@@ -69,11 +69,12 @@ def _explain_api_error(exc: Exception, model: str, mode: str) -> str:
             f"and confirm access to model '{model}'. Original error: {msg}"
         )
 
-    if "invalid_model" in lowered or "invalid model" in lowered:
+    if "invalid_model" in lowered or "invalid model" in lowered or "does not exist for router" in lowered:
         suggested = DEFAULT_BATCH_MODEL if mode == "batch" else DEFAULT_REALTIME_MODEL
         return (
-            f"{mode.capitalize()} STT received an invalid model error for '{model}'. "
-            f"Try a {mode} compatible model (for this script default: '{suggested}'). "
+            f"{mode.capitalize()} STT received an invalid/unavailable model error for '{model}'. "
+            f"Try a {mode} compatible model (default in this script: '{suggested}') "
+            "or update to a model currently available for your account. "
             f"Original error: {msg}"
         )
 

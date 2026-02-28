@@ -50,23 +50,15 @@ def classify_image(image_path):
     img = cv2.imread(image_path)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    lap_var = laplacian_variance(gray)
-    edge_d = edge_density(gray)
-    brightness_std = gray.std()
+    entropy = uniformity_score(gray)
+    h_ratio = horizontal_edge_ratio(gray)
 
-    # Règles simples à ajuster selon tes données
-    score = 0
-    if lap_var > 500:
-        score += 1
-    if edge_d > 0.12:
-        score += 1
+    is_document = entropy < 6.0 and (0.8 < h_ratio < 1.2)
 
     label = "DOCUMENT" if score >= 2 else "ENVIRONNEMENT"
     return {
         "file": image_path.name,
         "label": label,
-        "laplacian_variance": round(lap_var, 2),
-        "edge_density": round(edge_d, 4),
-        "brightness_std": round(float(brightness_std), 2),
-        "score": score
-    } 
+        "entropy": round(float(entropy), 3),
+        "h_edge_ratio": round(float(h_ratio), 3),
+    }

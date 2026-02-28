@@ -35,6 +35,17 @@ def horizontal_edge_ratio(gray):
     # Une scène → ratio très variable
     return h_energy / (v_energy + 1e-6)
 
+def uniformity_score(gray):
+    """
+    Dans un document, le fond est uniforme (blanc/beige).
+    Dans une scène, les pixels sont très variés.
+    """
+    hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
+    hist = hist / hist.sum()
+    # Entropie — faible = uniforme (document), élevée = complexe (scène)
+    entropy = -np.sum(hist * np.log2(hist + 1e-6))
+    return entropy  # Document < 6, Environnement > 6
+
 def classify_image(image_path):
     img = cv2.imread(image_path)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)

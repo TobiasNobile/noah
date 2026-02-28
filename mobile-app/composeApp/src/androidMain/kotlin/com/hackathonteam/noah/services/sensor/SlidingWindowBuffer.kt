@@ -12,9 +12,9 @@ import java.util.ArrayDeque
  * Exposes [readings] as a [StateFlow] so Compose UIs can observe live updates
  * without polling.
  *
- * @param windowMs  Width of the sliding window in milliseconds (default = 3 000 ms).
+ * @param windowMs  Width of the sliding window in milliseconds
  */
-class SlidingWindowBuffer(private val windowMs: Long = 3_000L) {
+class SlidingWindowBuffer(private val windowMs : Long) {
 
     private val deque = ArrayDeque<HardwareSensorReading>()
 

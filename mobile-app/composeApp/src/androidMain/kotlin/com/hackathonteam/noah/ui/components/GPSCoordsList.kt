@@ -11,7 +11,7 @@ import com.hackathonteam.noah.services.sensor.HardwareSensorReading
 fun GPSCoordsList(
     reading: List<HardwareSensorReading>,
     modifier: Modifier = Modifier,
-    windowMs: Long = 3_000L
+    windowMs: Long
 ) {
     Column(modifier = modifier) {
         Text(text = "GPS Coordinates List")

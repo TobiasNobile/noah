@@ -5,12 +5,13 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.util.Log
+import com.hackathonteam.noah.config.accelerometerAndGyroscopeWindowMs
 import com.hackathonteam.noah.services.sensor.HardwareSensorReading
 import com.hackathonteam.noah.services.sensor.HardwareSensorStrategy
 import com.hackathonteam.noah.services.sensor.SlidingWindowBuffer
 
 object GyroscopeSensor : SensorEventListener, HardwareSensorStrategy {
-    override val window = SlidingWindowBuffer(windowMs = 5_000L)
+    override val window = SlidingWindowBuffer(windowMs = accelerometerAndGyroscopeWindowMs)
 
     private var sensorManager: SensorManager? = null
     private var sensor: Sensor? = null

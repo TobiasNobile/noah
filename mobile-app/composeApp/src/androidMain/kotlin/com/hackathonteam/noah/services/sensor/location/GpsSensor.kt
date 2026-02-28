@@ -5,12 +5,13 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import com.hackathonteam.noah.config.gpsWindowMs
 import com.hackathonteam.noah.services.sensor.HardwareSensorReading
 import com.hackathonteam.noah.services.sensor.LocationSensorStrategy
 import com.hackathonteam.noah.services.sensor.SlidingWindowBuffer
 
 object GpsSensor : LocationSensorStrategy {
-    override val window = SlidingWindowBuffer(windowMs = 5_000L)
+    override val window = SlidingWindowBuffer(windowMs = gpsWindowMs)
     private var locationManager: LocationManager? = null
     private var locationListener: LocationListener? = null
     private val locationUpdateIntervalMs: Long = 1000L // 1 second

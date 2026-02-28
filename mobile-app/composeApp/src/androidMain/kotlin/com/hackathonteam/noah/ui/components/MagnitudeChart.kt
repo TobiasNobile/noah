@@ -38,7 +38,7 @@ import com.hackathonteam.noah.services.sensor.HardwareSensorReading
 fun MagnitudeChart(
     readings: List<HardwareSensorReading>,
     modifier: Modifier = Modifier,
-    windowMs: Long = 3_000L,
+    windowMs: Long,
     lineColor: Color = Color(0xFF2196F3),   // Material Blue
     gridColor: Color = Color(0x33FFFFFF),
     height: Dp = 180.dp,
@@ -49,7 +49,6 @@ fun MagnitudeChart(
     val labelColor = MaterialTheme.colorScheme.onSurface
 
     Column(modifier = modifier) {
-
         Text(
             text = "Accelerometer magnitude (m/s²) — last ${windowMs / 1_000}s",
             style = MaterialTheme.typography.labelSmall,

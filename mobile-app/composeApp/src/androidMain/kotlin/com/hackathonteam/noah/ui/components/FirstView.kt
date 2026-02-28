@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.hackathonteam.noah.config.accelerometerAndGyroscopeWindowMs
+import com.hackathonteam.noah.config.gpsWindowMs
 import com.hackathonteam.noah.services.sensor.hardware.AccelerometerSensor
 import com.hackathonteam.noah.services.sensor.location.GpsSensor
 import com.hackathonteam.noah.tracking.TrackingManager
@@ -60,7 +62,7 @@ fun App() {
                     modifier  = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
-                    windowMs  = 3_000L,
+                    windowMs  = accelerometerAndGyroscopeWindowMs,
                 )
 
                 GPSCoordsList(
@@ -68,7 +70,7 @@ fun App() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    windowMs = 3_000L
+                    windowMs = gpsWindowMs
                 )
             }
         }

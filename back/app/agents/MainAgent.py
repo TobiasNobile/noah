@@ -1,4 +1,5 @@
 import os
+import logging
 from typing import Literal
 
 from langchain_core.messages import SystemMessage, ToolMessage
@@ -11,6 +12,10 @@ from dotenv import load_dotenv
 from back.app.config.config import MODEL
 from back.app.network.sessions import ConversationState
 from back.app.tools.tools import tools, tools_by_name
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 load_dotenv()
 

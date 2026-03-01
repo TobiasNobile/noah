@@ -3,6 +3,7 @@ anyio==4.12.1
 certifi==2026.2.25
 charset-normalizer==3.4.4
 dotenv==0.9.9
+elevenlabs==2.19.0
 eval_type_backport==0.3.1
 googleapis-common-protos==1.72.0
 h11==0.16.0

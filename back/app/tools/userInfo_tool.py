@@ -20,15 +20,21 @@ class UserInfo:
     userState: userState
 
 @tool
-def userInfo_tool() -> UserInfo:
+def userInfo_tool(uuid: str) -> UserInfo:
     """Get the current information about the user to get its coordinates, location and state.
-    The state purpose is to know if the user is walking, running, idle or on transit.
+    The state purpose is to know if the user is walking, running, idle or on transit. The research is based on the user's UUID.
+
+    Args:
+        uuid (str): The UUID of the user session.
     """
     falseGps = GPS(lat=0.0, lon=0.0, altitude=0.0, accuracy=10000.0)
     return UserInfo(gps=falseGps, userState=userState.WALKING)
 
 @tool
-def userInfo_gpsToCity_tool() -> str:
-    """Get the city name from the GPS coordinates."""
+def userInfo_gpsToCity_tool(uuid: str) -> str:
+    """Get the city name from the GPS coordinates. The research is based on the user's UUID.
+
+    Args:
+        uuid (str): The UUID of the user session."""
     return "Paris, La Défense"
 

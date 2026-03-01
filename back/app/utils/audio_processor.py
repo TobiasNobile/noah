@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class AudioProcessor:
     """Handles accumulation and processing of audio chunks."""
     
-    # Audio configuration (must match Android: MicrophoneSensor)
+    # Audio configuration (match the Android MicrophoneSensor to recreate the same audio format)
     SAMPLE_RATE_HZ = 16_000
     CHANNELS = 1  # MONO
     SAMPLE_WIDTH = 2  # PCM16 = 2 bytes per sample

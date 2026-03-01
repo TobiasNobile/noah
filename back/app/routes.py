@@ -160,8 +160,10 @@ def main_endpoint(request: MainEndpointBase):
 
     try:
         # Invoke the agent with the user's question
+        logger.debug(f"Invoking agent for session {request.uuid} with question: {request.question}")
         result = agent.agent.invoke({
-            "messages": [HumanMessage(content=request.question)]
+            "messages": [HumanMessage(content=request.question)],
+            "uuid": request.uuid
         })
 
         # Extract the final answer from the agent's messages

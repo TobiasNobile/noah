@@ -62,18 +62,27 @@ class MainAgent:
     def llm_call(self, state: ConversationState):
         """LLM decides whether to call a tool or not"""
 
+        # Get UUID from state
+        user_uuid = state.get('uuid', 'unknown')
+
+        # Create system message with UUID
+        system_message = SystemMessage(
+            content=f"""You are a helpful assistant tasked with performing arithmetic on a set of inputs.
+
+Current User UUID: {user_uuid}
+
+You have access to user information through tools. When you need to retrieve user data, use the userInfo tool with this UUID.
+Always be helpful and provide accurate information to the user."""
+        )
+
         return {
             "messages": [
                 llm_with_tools.invoke(
-                    [
-                        SystemMessage(
-                            content="You are a helpful assistant tasked with performing arithmetic on a set of inputs."
-                        )
-                    ]
-                    + state["messages"]
+                    [system_message] + state["messages"]
                 )
             ],
-            "llm_calls": state.get('llm_calls', 0) + 1
+            "llm_calls": state.get('llm_calls', 0) + 1,
+            "uuid": state.get('uuid')  # Pass uuid through
         }
 
     def tool_node(self, state: ConversationState):
@@ -84,7 +93,11 @@ class MainAgent:
             tool = tools_by_name[tool_call["name"]]
             observation = tool.invoke(tool_call["args"])
             result.append(ToolMessage(content=observation, tool_call_id=tool_call["id"]))
-        return {"messages": result}
+
+        return {
+            "messages": result,
+            "uuid": state.get('uuid')
+        }
 
     def should_continue(self, state: ConversationState) -> Literal["tool_node", END]:
         """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""

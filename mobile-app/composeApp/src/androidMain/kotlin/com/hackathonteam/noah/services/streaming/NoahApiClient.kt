@@ -2,6 +2,8 @@ package com.hackathonteam.noah.services.streaming
 
 import android.util.Base64
 import android.util.Log
+import com.hackathonteam.noah.services.sensor.location.GpsSensor
+import com.hackathonteam.noah.tracking.TrackingState
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -9,11 +11,15 @@ import java.net.URL
 
 private const val TAG = "NoahApiClient"
 
-private const val BASE_URL        = "http://88.162.106.12:32666"
+private const val BASE_URL              = "http://88.162.106.12:32666"
 private const val REGISTER_ENDPOINT    = "$BASE_URL/register"
-private const val ASK_ENDPOINT    = "$BASE_URL/ask"
-private const val IMAGE_ENDPOINT  = "$BASE_URL/image"
-private const val SPEECH_ENDPOINT = "$BASE_URL/speech"
+
+private const val ASK_ENDPOINT         = "$BASE_URL/ask"
+private const val IMAGE_ENDPOINT       = "$BASE_URL/image"
+private const val SPEECH_ENDPOINT      = "$BASE_URL/speech"
+private const val USER_INFO_ENDPOINT      = "$BASE_URL/data"
+private const val AUDIO_CHUNK_ENDPOINT = "$BASE_URL/audio/chunk"
+private const val AUDIO_FINISH_ENDPOINT = "$BASE_URL/audio/finish"
 
 private const val CONNECT_TIMEOUT_MS = 10_000
 private const val READ_TIMEOUT_MS    = 15_000
@@ -28,6 +34,10 @@ sealed class RegisterResult {
     data class Registered(val uuid: String) : RegisterResult()
     /** The server returned `{"type": "ERROR"}` or a network / parse error occurred. */
     data class Error(val reason: String) : RegisterResult()
+}
+
+object UserInfo {
+    var activity: TrackingState? = TrackingState.IDLE
 }
 
 /**
@@ -87,6 +97,72 @@ object NoahApiClient {
         }
     }
 
+    fun ask(question: String, uuid: String) : Any {
+        val jsonBody = JSONObject().apply {
+            put("uuid", uuid)
+            put("question", question)
+        }.toString()
+
+        return try {
+            val raw = postJson(ASK_ENDPOINT, jsonBody)
+            val json = JSONObject(raw)
+            when (json.optString("type")) {
+                "success" -> {
+                    val answer = json.getString("answer")
+                    Log.d(TAG, "POST /ask → REGISTERED uanswer=$answer")
+                    answer
+                }
+                else -> {
+                    Log.w(TAG, "POST /ask → unexpected type=${json.optString("type")}")
+                    RegisterResult.Error("Server returned type=${json.optString("type")}")
+                }
+            }
+        } catch (e: IOException) {
+            Log.e(TAG, "POST /ask failed: ${e.message}")
+            RegisterResult.Error(e.message ?: "IOException")
+        } catch (e: Exception) {
+            Log.e(TAG, "POST /ask unexpected error: ${e.message}")
+            RegisterResult.Error(e.message ?: "Unexpected error")
+        }
+    }
+
+    fun sendUserInfo(uuid: String, info: UserInfo) : Boolean {
+        // Read GPS live from the sensor at the moment of the call — never stale.
+        val gpsReading = GpsSensor.window.getLatest()
+        val jsonBody = JSONObject().apply {
+            put("uuid", uuid)
+            val gpsObj = JSONObject().apply {
+                put("lat", gpsReading?.x ?: 0f)
+                put("lon", gpsReading?.y ?: 0f)
+            }
+            val userInfoObj = JSONObject().apply {
+                put("gps", gpsObj)
+                put("userState", info.activity?.name ?: "UNKNOWN")
+            }
+            put("user_info", userInfoObj)
+        }.toString()
+
+        Log.d("NoahApiClient", "Sending user info: $jsonBody")
+
+        return try {
+            val raw = postJson(USER_INFO_ENDPOINT, jsonBody)
+            val json = JSONObject(raw)
+            when (json.optString("type")) {
+                "success" -> {
+                    Log.d(TAG, "POST /data succeeded — uuid=$uuid  info=$info")
+                    true
+                }
+                else -> {
+                    Log.w(TAG, "POST /data → unexpected type=${json.optString("type")}")
+                    false
+                }
+            }
+        } catch (e: IOException) {
+            Log.e(TAG, "POST /user_info failed: ${e.message}")
+            false
+        }
+    }
+
     /**
      * POST /image — uploads a JPEG frame associated with [uuid].
      *
@@ -112,6 +188,7 @@ object NoahApiClient {
             when (json.optString("type")) {
                 "success" -> {
                     Log.d(TAG, "POST /image succeeded — uuid=$uuid  bytes=${jpegBytes.size}")
+                    number_of_tries = 3 //reset
                 }
                 "key_error" -> {
                     if(number_of_tries <= 0) {
@@ -189,6 +266,7 @@ object NoahApiClient {
             when (json.optString("type")) {
                 "success" -> {
                     Log.d(TAG, "POST /speech succeeded — uuid=$uuid  totalBytes=$totalSize")
+                    number_of_tries = 3//reset
                 }
                 "key_error" -> {
                     if(number_of_tries <= 0) {
@@ -220,6 +298,88 @@ object NoahApiClient {
             true
         } catch (e: IOException) {
             Log.e(TAG, "POST /speech failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * POST /audio/chunk — uploads a single raw PCM chunk for [uuid].
+     *
+     * Request body:
+     * ```json
+     * {"uuid": "<uuid>", "audio_data": "<base64-pcm>"}
+     * ```
+     *
+     * @param uuid     Session UUID returned by [register].
+     * @param pcmChunk A single raw PCM-16 mono chunk.
+     * @return `true` when the server acknowledges with a 2xx status.
+     */
+    fun sendAudioChunk(uuid: String, pcmChunk: ByteArray): Boolean {
+        val base64Audio = Base64.encodeToString(pcmChunk, Base64.NO_WRAP)
+        val jsonBody = JSONObject().apply {
+            put("uuid", uuid)
+            put("audio_data", base64Audio)
+        }.toString()
+
+        return try {
+            val raw = postJson(AUDIO_CHUNK_ENDPOINT, jsonBody)
+            val json = JSONObject(raw)
+            when (json.optString("type")) {
+                "success" -> {
+                    Log.d(TAG, "POST /audio/chunk succeeded — uuid=$uuid  bytes=${pcmChunk.size}")
+                    true
+                }
+                "key_error" -> {
+                    Log.w(TAG, "POST /audio/chunk → key_error for uuid=$uuid")
+                    false
+                }
+                else -> {
+                    Log.w(TAG, "POST /audio/chunk → unexpected type=${json.optString("type")}")
+                    false
+                }
+            }
+        } catch (e: IOException) {
+            Log.e(TAG, "POST /audio/chunk failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * POST /audio/finish — signals that audio recording is complete and
+     * instructs the server to convert accumulated PCM chunks to a WAV file.
+     *
+     * Request body:
+     * ```json
+     * {"uuid": "<uuid>"}
+     * ```
+     *
+     * @param uuid Session UUID returned by [register].
+     * @return `true` when the server acknowledges with a 2xx status.
+     */
+    fun finishAudio(uuid: String): Boolean {
+        val jsonBody = JSONObject().apply {
+            put("uuid", uuid)
+        }.toString()
+
+        return try {
+            val raw = postJson(AUDIO_FINISH_ENDPOINT, jsonBody)
+            val json = JSONObject(raw)
+            when (json.optString("type")) {
+                "success" -> {
+                    Log.d(TAG, "POST /audio/finish succeeded — uuid=$uuid")
+                    true
+                }
+                "key_error" -> {
+                    Log.w(TAG, "POST /audio/finish → key_error for uuid=$uuid")
+                    false
+                }
+                else -> {
+                    Log.w(TAG, "POST /audio/finish → unexpected type=${json.optString("type")}")
+                    false
+                }
+            }
+        } catch (e: IOException) {
+            Log.e(TAG, "POST /audio/finish failed: ${e.message}")
             false
         }
     }

@@ -58,5 +58,9 @@ class SlidingWindowBuffer(private val windowMs : Long) {
             deque.pollFirst()
         }
     }
+
+    fun getLatest(): HardwareSensorReading? {
+        return deque.peekLast()
+    }
 }
 

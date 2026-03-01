@@ -116,15 +116,17 @@ fun MainScreen(
             onClick = {
                 if (TrackingManager.isTrackingActive) {
                     TrackingManager.stopListening()
-                    textToSpeech?.speak("Suivi arrêté", TextToSpeech.QUEUE_FLUSH, null, null)
+                    textToSpeech?.speak("Stopped tracking", TextToSpeech.QUEUE_FLUSH, null, null)
                 } else {
                     TrackingManager.startListening(context)
-                    textToSpeech?.speak("Suivi démarré", TextToSpeech.QUEUE_FLUSH, null, null)
+                    textToSpeech?.speak("Started tracking", TextToSpeech.QUEUE_FLUSH, null, null)
                 }
                 triggerHapticFeedback(context)
             },
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .fillMaxHeight(0.8f)
+                .align(Alignment.Center)
                 .padding(32.dp)
         )
 
@@ -144,7 +146,7 @@ fun MainScreen(
                 .align(Alignment.TopEnd)
                 .padding(16.dp)
                 .size(48.dp)
-                .semantics { contentDescription = "Ouvrir les paramètres" }
+                .semantics { contentDescription = "Open settings" }
         ) {
             Icon(
                 imageVector = Icons.Default.Settings,
@@ -186,10 +188,10 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "Retour",
+                text = "",
                 fontSize = 14.sp,
                 modifier = Modifier.semantics {
-                    contentDescription = "Retourner à l'écran principal"
+                    contentDescription = "Back to home screen"
                 }
             )
         }
@@ -197,7 +199,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
         Spacer(Modifier.height(32.dp))
 
         Text(
-            text = "Paramètres du serveur",
+            text = "Server settings",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = MistralTextWhite
@@ -206,7 +208,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
         Spacer(Modifier.height(32.dp))
 
         Text(
-            text = "Adresse IP",
+            text = "IP Address",
             fontSize = 14.sp,
             color = MistralTextWhite.copy(alpha = 0.7f),
             modifier = Modifier.padding(bottom = 8.dp)
@@ -219,8 +221,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .semantics { contentDescription = "Champ adresse IP du serveur" },
-            label = { Text("IP du serveur") },
+                .semantics { contentDescription = "Server IP Address field" },
+            label = { Text("Server IP") },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MistralOrange,
@@ -249,8 +251,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .semantics { contentDescription = "Champ port du serveur" },
-            label = { Text("Port du serveur") },
+                .semantics { contentDescription = "Server port field" },
+            label = { Text("Port server") },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MistralOrange,
@@ -266,7 +268,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
         Spacer(Modifier.height(16.dp))
 
         Text(
-            text = "Les modifications sont sauvegardées automatiquement.",
+            text = "Changes are saved automatically",
             fontSize = 12.sp,
             color = MistralTextWhite.copy(alpha = 0.4f)
         )
@@ -296,18 +298,18 @@ fun GiantAccessibleButton(
 
             Icon(
                 imageVector = if (isTrackingActive) Icons.Default.Stop else Icons.Default.PlayArrow,
-                contentDescription = if (isTrackingActive) "Bouton arrêter le suivi" else "Bouton démarrer le suivi",
+                contentDescription = if (isTrackingActive) "Stop tracking button" else "Start tracking button",
                 modifier = Modifier.size(120.dp)
             )
 
             Spacer(Modifier.height(24.dp))
 
             Text(
-                text = if (isTrackingActive) "ARRÊTER" else "DÉMARRER",
+                text = if (isTrackingActive) "STOP" else "START",
                 fontSize = 36.sp,
                 fontWeight = FontWeight.ExtraBold,
                 modifier = Modifier.semantics {
-                    contentDescription = if (isTrackingActive) "Arrêter le suivi" else "Démarrer le suivi"
+                    contentDescription = if (isTrackingActive) "Stop tracking" else "Start tracking"
                 }
             )
         }

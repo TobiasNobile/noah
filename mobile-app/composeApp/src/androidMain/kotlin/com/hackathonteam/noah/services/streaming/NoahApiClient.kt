@@ -1,5 +1,6 @@
 package com.hackathonteam.noah.services.streaming
 
+import android.content.Context
 import android.util.Base64
 import android.util.Log
 import com.hackathonteam.noah.services.sensor.location.GpsSensor
@@ -11,19 +12,8 @@ import java.net.URL
 
 private const val TAG = "NoahApiClient"
 
-private const val BASE_URL              = "http://88.162.106.12:32666"
-private const val REGISTER_ENDPOINT    = "$BASE_URL/register"
-
-private const val ASK_ENDPOINT         = "$BASE_URL/ask"
-private const val IMAGE_ENDPOINT       = "$BASE_URL/image"
-private const val SPEECH_ENDPOINT      = "$BASE_URL/speech"
-private const val USER_INFO_ENDPOINT      = "$BASE_URL/data"
-private const val AUDIO_CHUNK_ENDPOINT = "$BASE_URL/audio/chunk"
-private const val AUDIO_FINISH_ENDPOINT = "$BASE_URL/audio/finish"
-
-private const val CONNECT_TIMEOUT_MS        = 10_000
-private const val READ_TIMEOUT_MS           = 15_000
-private const val AUDIO_FINISH_TIMEOUT_MS   = 120_000   // 2 minutes — LLM can be slow
+private const val CONNECT_TIMEOUT_MS = 10_000
+private const val READ_TIMEOUT_MS    = 15_000
 
 private var number_of_tries = 3
 
@@ -35,20 +25,6 @@ sealed class RegisterResult {
     data class Registered(val uuid: String) : RegisterResult()
     /** The server returned `{"type": "ERROR"}` or a network / parse error occurred. */
     data class Error(val reason: String) : RegisterResult()
-}
-
-/**
- * Describes every outcome that [NoahApiClient.finishAudio] can return.
- */
-sealed class FinishAudioResult {
-    /** The server successfully processed the audio and returned an answer. */
-    data class Success(
-        val answer: String,
-        /** Raw bytes of the response audio (decoded from base64). May be empty. */
-        val audioBytes: ByteArray,
-    ) : FinishAudioResult()
-    /** The server returned an error or the call failed. */
-    data class Error(val reason: String) : FinishAudioResult()
 }
 
 object UserInfo {
@@ -63,68 +39,90 @@ object UserInfo {
  *
  * Lifecycle
  * ---------
+ * 0. Call [init] once at app startup (e.g. in Application.onCreate or MainActivity.onCreate).
  * 1. Call [register] once per tracking session to obtain a session UUID.
  * 2. Use [sendImage] and [sendAudio] to upload data frames with that UUID.
  */
 object NoahApiClient {
 
     // -------------------------------------------------------------------------
+    // URL dynamique lue depuis le stockage interne
+    // -------------------------------------------------------------------------
+
+    private var baseUrl: String = "http://localhost:32666"
+
+    private val registerEndpoint    get() = "$baseUrl/register"
+    private val askEndpoint         get() = "$baseUrl/ask"
+    private val imageEndpoint       get() = "$baseUrl/image"
+    private val speechEndpoint      get() = "$baseUrl/speech"
+    private val userInfoEndpoint    get() = "$baseUrl/data"
+    private val audioChunkEndpoint  get() = "$baseUrl/audio/chunk"
+    private val audioFinishEndpoint get() = "$baseUrl/audio/finish"
+
+    /**
+     * À appeler une fois au démarrage de l'app pour charger l'IP et le port
+     * depuis le stockage interne (fichier server_settings.txt dans filesDir).
+     * Si le fichier n'existe pas, utilise localhost:32666 par défaut.
+     */
+    fun init(context: Context) {
+        val (ip, port) = loadSettings(context)
+        baseUrl = "http://$ip:$port"
+        Log.d(TAG, "NoahApiClient initialized with baseUrl=$baseUrl")
+    }
+
+    private fun loadSettings(context: Context): Pair<String, String> {
+        val file = java.io.File(context.filesDir, "server_settings.txt")
+        return if (file.exists()) {
+            val lines = file.readLines()
+            val ip   = lines.getOrNull(0)?.takeIf { it.isNotBlank() } ?: "localhost"
+            val port = lines.getOrNull(1)?.takeIf { it.isNotBlank() } ?: "32666"
+            Pair(ip, port)
+        } else {
+            Pair("localhost", "32666")
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Public API
     // -------------------------------------------------------------------------
 
-    /**
-     * POST /ask — registers a new session with a dummy question.
-     *
-     * Request body: empty
-     * Expected success response:
-     * ```json
-     * {"uuid": "<uuid>", "answer": "<text>", "type": "registered"}
-     * ```
-     * Expected error response:
-     * ```json
-     * {"type": "error"}
-     * ```
-     *
-     * @return [RegisterResult.Registered] on success, [RegisterResult.Error] otherwise.
-     */
     fun register(): RegisterResult {
-
         return try {
-            val raw = postJson(REGISTER_ENDPOINT, null)
+            val raw = postJson(registerEndpoint, null)
             val json = JSONObject(raw)
             when (json.optString("type")) {
                 "registered" -> {
-                    val uuid   = json.getString("uuid")
-                    Log.d(TAG, "POST /ask → REGISTERED uuid=$uuid")
+                    val uuid = json.getString("uuid")
+                    Log.d(TAG, "POST /register → REGISTERED uuid=$uuid")
                     RegisterResult.Registered(uuid = uuid)
                 }
                 else -> {
-                    Log.w(TAG, "POST /ask → unexpected type=${json.optString("type")}")
+                    Log.w(TAG, "POST /register → unexpected type=${json.optString("type")}")
                     RegisterResult.Error("Server returned type=${json.optString("type")}")
                 }
             }
         } catch (e: IOException) {
-            Log.e(TAG, "POST /ask failed: ${e.message}")
+            Log.e(TAG, "POST /register failed: ${e.message}")
             RegisterResult.Error(e.message ?: "IOException")
         } catch (e: Exception) {
-            Log.e(TAG, "POST /ask unexpected error: ${e.message}")
+            Log.e(TAG, "POST /register unexpected error: ${e.message}")
             RegisterResult.Error(e.message ?: "Unexpected error")
         }
     }
 
-    fun ask(question: String, uuid: String) : Any {
+    fun ask(question: String, uuid: String): Any {
         val jsonBody = JSONObject().apply {
             put("uuid", uuid)
             put("question", question)
         }.toString()
 
         return try {
-            val raw = postJson(ASK_ENDPOINT, jsonBody)
+            val raw = postJson(askEndpoint, jsonBody)
             val json = JSONObject(raw)
             when (json.optString("type")) {
                 "success" -> {
                     val answer = json.getString("answer")
-                    Log.d(TAG, "POST /ask → REGISTERED uanswer=$answer")
+                    Log.d(TAG, "POST /ask → answer=$answer")
                     answer
                 }
                 else -> {
@@ -141,8 +139,7 @@ object NoahApiClient {
         }
     }
 
-    fun sendUserInfo(uuid: String, info: UserInfo) : Boolean {
-        // Read GPS live from the sensor at the moment of the call — never stale.
+    fun sendUserInfo(uuid: String, info: UserInfo): Boolean {
         val gpsReading = GpsSensor.window.getLatest()
         val jsonBody = JSONObject().apply {
             put("uuid", uuid)
@@ -160,7 +157,7 @@ object NoahApiClient {
         Log.d("NoahApiClient", "Sending user info: $jsonBody")
 
         return try {
-            val raw = postJson(USER_INFO_ENDPOINT, jsonBody)
+            val raw = postJson(userInfoEndpoint, jsonBody)
             val json = JSONObject(raw)
             when (json.optString("type")) {
                 "success" -> {
@@ -178,18 +175,6 @@ object NoahApiClient {
         }
     }
 
-    /**
-     * POST /image — uploads a JPEG frame associated with [uuid].
-     *
-     * Request body:
-     * ```json
-     * {"uuid": "<uuid>", "image_data": "<base64>"}
-     * ```
-     *
-     * @param uuid       Session UUID returned by [register].
-     * @param jpegBytes  Raw JPEG bytes (as produced by the camera pipeline).
-     * @return `true` when the server acknowledges with a 2xx status.
-     */
     fun sendImage(uuid: String, jpegBytes: ByteArray): Boolean {
         val base64Image = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
         val jsonBody = JSONObject().apply {
@@ -198,37 +183,33 @@ object NoahApiClient {
         }.toString()
 
         return try {
-            val raw = postJson(IMAGE_ENDPOINT, jsonBody)
+            val raw = postJson(imageEndpoint, jsonBody)
             val json = JSONObject(raw)
             when (json.optString("type")) {
                 "success" -> {
                     Log.d(TAG, "POST /image succeeded — uuid=$uuid  bytes=${jpegBytes.size}")
-                    number_of_tries = 3 //reset
+                    number_of_tries = 3
                 }
                 "key_error" -> {
-                    if(number_of_tries <= 0) {
+                    if (number_of_tries <= 0) {
                         Log.w(TAG, "POST /image → key error and no more tries left")
                         return false
                     } else {
                         number_of_tries--
                         Log.w(TAG, "POST /image → key error, retrying… tries left: $number_of_tries")
                         val registerResult = register()
-                        if(registerResult is RegisterResult.Registered) {
-                            Log.d(TAG, "Re-registered with new uuid=${registerResult.uuid} after key error")
+                        if (registerResult is RegisterResult.Registered) {
                             return sendImage(registerResult.uuid, jpegBytes)
-                        } else {
-                            Log.w(TAG, "Failed to re-register after key error")
                         }
                         return false
                     }
                 }
                 else -> {
-                    if(number_of_tries <= 0) {
+                    if (number_of_tries <= 0) {
                         Log.w(TAG, "POST /image → other error and no more tries left")
                         return false
                     } else {
                         number_of_tries--
-                        Log.w(TAG, "POST /image → other error, retrying… tries left: $number_of_tries")
                         return sendImage(uuid, jpegBytes)
                     }
                 }
@@ -240,27 +221,12 @@ object NoahApiClient {
         }
     }
 
-    /**
-     * POST /speech — uploads a PCM audio buffer associated with [uuid].
-     *
-     * The [pcmChunks] list is concatenated and Base64-encoded before sending.
-     *
-     * Request body:
-     * ```json
-     * {"uuid": "<uuid>", "audio_data": "<base64>"}
-     * ```
-     *
-     * @param uuid       Session UUID returned by [register].
-     * @param pcmChunks  Ordered list of raw PCM-16 mono chunks to concatenate.
-     * @return `true` when the server acknowledges with a 2xx status.
-     */
     fun sendAudio(uuid: String, pcmChunks: List<ByteArray>): Boolean {
         if (pcmChunks.isEmpty()) {
             Log.d(TAG, "sendAudio skipped — no audio chunks")
             return true
         }
 
-        // Concatenate all chunks into one contiguous buffer.
         val totalSize = pcmChunks.sumOf { it.size }
         val combined = ByteArray(totalSize)
         var offset = 0
@@ -276,36 +242,32 @@ object NoahApiClient {
         }.toString()
 
         return try {
-            val raw = postJson(SPEECH_ENDPOINT, jsonBody)
+            val raw = postJson(speechEndpoint, jsonBody)
             val json = JSONObject(raw)
             when (json.optString("type")) {
                 "success" -> {
                     Log.d(TAG, "POST /speech succeeded — uuid=$uuid  totalBytes=$totalSize")
-                    number_of_tries = 3//reset
+                    number_of_tries = 3
                 }
                 "key_error" -> {
-                    if(number_of_tries <= 0) {
+                    if (number_of_tries <= 0) {
                         Log.w(TAG, "POST /speech → key error and no more tries left")
                         return false
                     } else {
                         number_of_tries--
                         val registerResult = register()
-                        if(registerResult is RegisterResult.Registered) {
-                            Log.d(TAG, "Re-registered with new uuid=${registerResult.uuid} after key error")
+                        if (registerResult is RegisterResult.Registered) {
                             return sendAudio(registerResult.uuid, pcmChunks)
-                        } else {
-                            Log.w(TAG, "Failed to re-register after key error")
                         }
                         return false
                     }
                 }
                 else -> {
-                    if(number_of_tries <= 0) {
+                    if (number_of_tries <= 0) {
                         Log.w(TAG, "POST /speech → other error and no more tries left")
                         return false
                     } else {
                         number_of_tries--
-                        Log.w(TAG, "POST /speech → other error, retrying… tries left: $number_of_tries")
                         return sendAudio(uuid, pcmChunks)
                     }
                 }
@@ -317,18 +279,6 @@ object NoahApiClient {
         }
     }
 
-    /**
-     * POST /audio/chunk — uploads a single raw PCM chunk for [uuid].
-     *
-     * Request body:
-     * ```json
-     * {"uuid": "<uuid>", "audio_data": "<base64-pcm>"}
-     * ```
-     *
-     * @param uuid     Session UUID returned by [register].
-     * @param pcmChunk A single raw PCM-16 mono chunk.
-     * @return `true` when the server acknowledges with a 2xx status.
-     */
     fun sendAudioChunk(uuid: String, pcmChunk: ByteArray): Boolean {
         val base64Audio = Base64.encodeToString(pcmChunk, Base64.NO_WRAP)
         val jsonBody = JSONObject().apply {
@@ -337,7 +287,7 @@ object NoahApiClient {
         }.toString()
 
         return try {
-            val raw = postJson(AUDIO_CHUNK_ENDPOINT, jsonBody)
+            val raw = postJson(audioChunkEndpoint, jsonBody)
             val json = JSONObject(raw)
             when (json.optString("type")) {
                 "success" -> {
@@ -359,52 +309,31 @@ object NoahApiClient {
         }
     }
 
-    /**
-     * POST /audio/finish — signals that audio recording is complete and
-     * instructs the server to convert accumulated PCM chunks to a WAV file,
-     * run the LLM pipeline, and return the answer + response audio.
-     *
-     * Request body:
-     * ```json
-     * {"uuid": "<uuid>"}
-     * ```
-     *
-     * @param uuid Session UUID returned by [register].
-     * @return [FinishAudioResult.Success] with the LLM answer and audio bytes on success,
-     *         or [FinishAudioResult.Error] on failure.
-     */
-    fun finishAudio(uuid: String): FinishAudioResult {
+    fun finishAudio(uuid: String): Boolean {
         val jsonBody = JSONObject().apply {
             put("uuid", uuid)
         }.toString()
 
         return try {
-            val raw = postJson(AUDIO_FINISH_ENDPOINT, jsonBody, readTimeoutMs = AUDIO_FINISH_TIMEOUT_MS)
+            val raw = postJson(audioFinishEndpoint, jsonBody)
             val json = JSONObject(raw)
             when (json.optString("type")) {
                 "success" -> {
-                    val answer         = json.optString("answer", "")
-                    val audioBase64    = json.optString("response_audio_data", "")
-                    val audioBytes     = if (audioBase64.isNotEmpty())
-                        Base64.decode(audioBase64, Base64.NO_WRAP)
-                    else
-                        ByteArray(0)
-                    Log.d(TAG, "POST /audio/finish succeeded — uuid=$uuid  answer=${answer.take(80)}  audioBytes=${audioBytes.size}")
-                    FinishAudioResult.Success(answer = answer, audioBytes = audioBytes)
+                    Log.d(TAG, "POST /audio/finish succeeded — uuid=$uuid")
+                    true
                 }
                 "key_error" -> {
                     Log.w(TAG, "POST /audio/finish → key_error for uuid=$uuid")
-                    FinishAudioResult.Error("key_error")
+                    false
                 }
                 else -> {
-                    val errMsg = json.optString("error", "unknown error")
-                    Log.w(TAG, "POST /audio/finish → type=${json.optString("type")}  error=$errMsg")
-                    FinishAudioResult.Error(errMsg)
+                    Log.w(TAG, "POST /audio/finish → unexpected type=${json.optString("type")}")
+                    false
                 }
             }
         } catch (e: IOException) {
             Log.e(TAG, "POST /audio/finish failed: ${e.message}")
-            FinishAudioResult.Error(e.message ?: "IOException")
+            false
         }
     }
 
@@ -412,27 +341,19 @@ object NoahApiClient {
     // Internal helpers
     // -------------------------------------------------------------------------
 
-    /**
-     * Performs a blocking HTTP POST with a JSON body and returns the response
-     * body as a [String]. Throws [IOException] on network or HTTP errors.
-     */
     @Throws(IOException::class)
-    private fun postJson(
-        endpoint: String,
-        jsonBody: String?,
-        readTimeoutMs: Int = READ_TIMEOUT_MS,
-    ): String {
+    private fun postJson(endpoint: String, jsonBody: String?): String {
         val url  = URL(endpoint)
         val conn = url.openConnection() as HttpURLConnection
         try {
-            conn.requestMethod    = "POST"
-            conn.connectTimeout   = CONNECT_TIMEOUT_MS
-            conn.readTimeout      = readTimeoutMs
-            conn.doOutput         = true
+            conn.requestMethod  = "POST"
+            conn.connectTimeout = CONNECT_TIMEOUT_MS
+            conn.readTimeout    = READ_TIMEOUT_MS
+            conn.doOutput       = true
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             conn.setRequestProperty("Accept", "application/json")
 
-            if(jsonBody == null) {
+            if (jsonBody == null) {
                 conn.setFixedLengthStreamingMode(0)
             } else {
                 val bodyBytes = jsonBody.toByteArray(Charsets.UTF_8)

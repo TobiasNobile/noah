@@ -1,8 +1,10 @@
 package com.hackathonteam.noah.services.streaming
 
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.util.Log
 import com.hackathonteam.noah.services.sensor.audio.MicrophoneSensor
-import com.hackathonteam.noah.services.sensor.location.GpsSensor
 import com.hackathonteam.noah.tracking.TrackingManager
 import com.hackathonteam.noah.ui.interactions.latestCameraFrame
 import kotlinx.coroutines.CoroutineScope
@@ -14,20 +16,21 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.sqrt
 
 private const val TAG = "StreamDispatcher"
 private const val PERIODIC_INTERVAL_MS = 5_000L
 private const val USER_INFO_INTERVAL_MS = 10_000L
 private const val VOICE_ACTIVITY_RMS_THRESHOLD = 800.0
-private const val SILENCE_TIMEOUT_MS = 4_000L
+private const val SILENCE_TIMEOUT_MS = 2_000L
+private const val ANSWER_WAIT_TIMEOUT_MS = 120_000L   // 2 minutes — stop tracking if exceeded
 
 object StreamDispatcher {
 
@@ -200,8 +203,8 @@ object StreamDispatcher {
                     val ok = NoahApiClient.sendAudioChunk(uuid, chunk)
                     if (!ok) Log.w(TAG, "Flush: audio chunk upload failed for uuid=$uuid")
                 }
-                val ok = NoahApiClient.finishAudio(uuid)
-                if (!ok) Log.w(TAG, "POST /audio/finish failed for uuid=$uuid")
+                val result = NoahApiClient.finishAudio(uuid)
+                if (result is FinishAudioResult.Error) Log.w(TAG, "POST /audio/finish failed for uuid=$uuid — ${result.reason}")
             }
         } else {
             scope.launch { audioMutex.withLock { pendingAudioChunks.clear() } }
@@ -217,8 +220,12 @@ object StreamDispatcher {
 
     /**
      * Called after [SILENCE_TIMEOUT_MS] of silence following voice activity.
-     * Signals the server to assemble the WAV and process the turn, then resets
-     * the voice-activity flag so the next utterance starts a fresh turn.
+     * Signals the server to assemble the WAV and process the turn, then waits
+     * up to [ANSWER_WAIT_TIMEOUT_MS] for the LLM answer + response audio.
+     *
+     * On success  → plays the audio answer through the Android speakers.
+     * On timeout  → stops tracking entirely via [TrackingManager.stopListening].
+     *
      * The microphone keeps running and chunks keep flowing — the server's
      * [processor.clear()] inside /audio/finish ensures the next /audio/finish
      * will only contain audio from the new turn.
@@ -235,13 +242,122 @@ object StreamDispatcher {
         }
 
         withContext(Dispatchers.IO) {
-            val ok = NoahApiClient.finishAudio(uuid)
-            if (ok) {
-                Log.d(TAG, "/audio/finish succeeded — server is processing the turn")
-                dispatch(triggeredByVoice = true)
-            } else {
-                Log.w(TAG, "/audio/finish failed for uuid=$uuid")
+            // Wait up to 2 minutes for the server to process and reply.
+            val result = withTimeoutOrNull(ANSWER_WAIT_TIMEOUT_MS) {
+                NoahApiClient.finishAudio(uuid)
             }
+
+            when {
+                result == null -> {
+                    // Timed out waiting for the server response.
+                    Log.w(TAG, "LLM answer timed out after ${ANSWER_WAIT_TIMEOUT_MS / 1000}s — stopping tracking")
+                    withContext(Dispatchers.Main) {
+                        TrackingManager.stopListening()
+                    }
+                }
+                result is FinishAudioResult.Success -> {
+                    Log.d(TAG, "/audio/finish succeeded — answer: ${result.answer.take(120)}")
+                    if (result.audioBytes.isNotEmpty()) {
+                        playResponseAudio(result.audioBytes)
+                    } else {
+                        Log.d(TAG, "No response audio bytes received")
+                    }
+                    dispatch(triggeredByVoice = true)
+                }
+                result is FinishAudioResult.Error -> {
+                    Log.w(TAG, "/audio/finish failed for uuid=$uuid — ${result.reason}")
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Audio playback
+    // -------------------------------------------------------------------------
+
+    /**
+     * Decodes [wavBytes] (a WAV file) and plays it through the device speakers
+     * using [AudioTrack] in static mode (entire buffer loaded before playback).
+     *
+     * This function is blocking — it returns only after playback completes.
+     * It should always be called from an IO-bound coroutine.
+     */
+    private fun playResponseAudio(wavBytes: ByteArray) {
+        try {
+            // --- Parse minimal WAV header (44 bytes) to extract PCM parameters ---
+            if (wavBytes.size < 44) {
+                Log.w(TAG, "Response audio too small to be a valid WAV (${wavBytes.size} bytes)")
+                return
+            }
+
+            // Channels: bytes 22-23 (little-endian short)
+            val channels      = ((wavBytes[23].toInt() and 0xFF) shl 8) or (wavBytes[22].toInt() and 0xFF)
+            // Sample rate: bytes 24-27 (little-endian int)
+            val sampleRate    = ((wavBytes[27].toInt() and 0xFF) shl 24) or
+                                ((wavBytes[26].toInt() and 0xFF) shl 16) or
+                                ((wavBytes[25].toInt() and 0xFF) shl  8) or
+                                 (wavBytes[24].toInt() and 0xFF)
+            // Bits per sample: bytes 34-35 (little-endian short)
+            val bitsPerSample = ((wavBytes[35].toInt() and 0xFF) shl 8) or (wavBytes[34].toInt() and 0xFF)
+
+            val channelMask = if (channels == 1)
+                AudioFormat.CHANNEL_OUT_MONO
+            else
+                AudioFormat.CHANNEL_OUT_STEREO
+
+            val encoding = if (bitsPerSample == 16)
+                AudioFormat.ENCODING_PCM_16BIT
+            else
+                AudioFormat.ENCODING_PCM_8BIT
+
+            // PCM data starts at byte 44 (standard WAV header size).
+            val pcmOffset = 44
+            val pcmLength = wavBytes.size - pcmOffset
+
+            if (pcmLength <= 0) {
+                Log.w(TAG, "WAV file has no PCM data after header")
+                return
+            }
+
+            Log.d(TAG, "Playing response audio: sampleRate=$sampleRate  channels=$channels  " +
+                       "bits=$bitsPerSample  pcmBytes=$pcmLength")
+
+            // Use MODE_STATIC: load all PCM into the track's buffer before playing,
+            // so the audio is never cut off by an early stop() call.
+            val audioTrack = AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)           // routes to speaker reliably
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setSampleRate(sampleRate)
+                        .setEncoding(encoding)
+                        .setChannelMask(channelMask)
+                        .build()
+                )
+                .setBufferSizeInBytes(pcmLength)                         // exact size for MODE_STATIC
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .build()
+
+            // Load all PCM data into the static buffer before starting playback.
+            audioTrack.write(wavBytes, pcmOffset, pcmLength)
+            audioTrack.play()
+
+            // Block until playback head has advanced past all frames.
+            val totalFrames = pcmLength / (bitsPerSample / 8) / channels
+            while (audioTrack.playState == AudioTrack.PLAYSTATE_PLAYING &&
+                   audioTrack.playbackHeadPosition < totalFrames) {
+                Thread.sleep(50)
+            }
+
+            audioTrack.stop()
+            audioTrack.release()
+            Log.d(TAG, "Response audio playback complete")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error playing response audio: ${e.message}", e)
         }
     }
 

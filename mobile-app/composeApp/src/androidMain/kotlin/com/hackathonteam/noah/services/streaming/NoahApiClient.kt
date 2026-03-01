@@ -21,8 +21,9 @@ private const val USER_INFO_ENDPOINT      = "$BASE_URL/data"
 private const val AUDIO_CHUNK_ENDPOINT = "$BASE_URL/audio/chunk"
 private const val AUDIO_FINISH_ENDPOINT = "$BASE_URL/audio/finish"
 
-private const val CONNECT_TIMEOUT_MS = 10_000
-private const val READ_TIMEOUT_MS    = 15_000
+private const val CONNECT_TIMEOUT_MS        = 10_000
+private const val READ_TIMEOUT_MS           = 15_000
+private const val AUDIO_FINISH_TIMEOUT_MS   = 120_000   // 2 minutes — LLM can be slow
 
 private var number_of_tries = 3
 
@@ -34,6 +35,20 @@ sealed class RegisterResult {
     data class Registered(val uuid: String) : RegisterResult()
     /** The server returned `{"type": "ERROR"}` or a network / parse error occurred. */
     data class Error(val reason: String) : RegisterResult()
+}
+
+/**
+ * Describes every outcome that [NoahApiClient.finishAudio] can return.
+ */
+sealed class FinishAudioResult {
+    /** The server successfully processed the audio and returned an answer. */
+    data class Success(
+        val answer: String,
+        /** Raw bytes of the response audio (decoded from base64). May be empty. */
+        val audioBytes: ByteArray,
+    ) : FinishAudioResult()
+    /** The server returned an error or the call failed. */
+    data class Error(val reason: String) : FinishAudioResult()
 }
 
 object UserInfo {
@@ -346,7 +361,8 @@ object NoahApiClient {
 
     /**
      * POST /audio/finish — signals that audio recording is complete and
-     * instructs the server to convert accumulated PCM chunks to a WAV file.
+     * instructs the server to convert accumulated PCM chunks to a WAV file,
+     * run the LLM pipeline, and return the answer + response audio.
      *
      * Request body:
      * ```json
@@ -354,33 +370,41 @@ object NoahApiClient {
      * ```
      *
      * @param uuid Session UUID returned by [register].
-     * @return `true` when the server acknowledges with a 2xx status.
+     * @return [FinishAudioResult.Success] with the LLM answer and audio bytes on success,
+     *         or [FinishAudioResult.Error] on failure.
      */
-    fun finishAudio(uuid: String): Boolean {
+    fun finishAudio(uuid: String): FinishAudioResult {
         val jsonBody = JSONObject().apply {
             put("uuid", uuid)
         }.toString()
 
         return try {
-            val raw = postJson(AUDIO_FINISH_ENDPOINT, jsonBody)
+            val raw = postJson(AUDIO_FINISH_ENDPOINT, jsonBody, readTimeoutMs = AUDIO_FINISH_TIMEOUT_MS)
             val json = JSONObject(raw)
             when (json.optString("type")) {
                 "success" -> {
-                    Log.d(TAG, "POST /audio/finish succeeded — uuid=$uuid")
-                    true
+                    val answer         = json.optString("answer", "")
+                    val audioBase64    = json.optString("response_audio_data", "")
+                    val audioBytes     = if (audioBase64.isNotEmpty())
+                        Base64.decode(audioBase64, Base64.NO_WRAP)
+                    else
+                        ByteArray(0)
+                    Log.d(TAG, "POST /audio/finish succeeded — uuid=$uuid  answer=${answer.take(80)}  audioBytes=${audioBytes.size}")
+                    FinishAudioResult.Success(answer = answer, audioBytes = audioBytes)
                 }
                 "key_error" -> {
                     Log.w(TAG, "POST /audio/finish → key_error for uuid=$uuid")
-                    false
+                    FinishAudioResult.Error("key_error")
                 }
                 else -> {
-                    Log.w(TAG, "POST /audio/finish → unexpected type=${json.optString("type")}")
-                    false
+                    val errMsg = json.optString("error", "unknown error")
+                    Log.w(TAG, "POST /audio/finish → type=${json.optString("type")}  error=$errMsg")
+                    FinishAudioResult.Error(errMsg)
                 }
             }
         } catch (e: IOException) {
             Log.e(TAG, "POST /audio/finish failed: ${e.message}")
-            false
+            FinishAudioResult.Error(e.message ?: "IOException")
         }
     }
 
@@ -393,13 +417,17 @@ object NoahApiClient {
      * body as a [String]. Throws [IOException] on network or HTTP errors.
      */
     @Throws(IOException::class)
-    private fun postJson(endpoint: String, jsonBody: String?): String {
+    private fun postJson(
+        endpoint: String,
+        jsonBody: String?,
+        readTimeoutMs: Int = READ_TIMEOUT_MS,
+    ): String {
         val url  = URL(endpoint)
         val conn = url.openConnection() as HttpURLConnection
         try {
             conn.requestMethod    = "POST"
             conn.connectTimeout   = CONNECT_TIMEOUT_MS
-            conn.readTimeout      = READ_TIMEOUT_MS
+            conn.readTimeout      = readTimeoutMs
             conn.doOutput         = true
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             conn.setRequestProperty("Accept", "application/json")

@@ -1,4 +1,4 @@
-![](Noah_wallpaper.png?raw=true)
+![](assets/Noah_wallpaper.png?raw=true)
 
 **Noah** is an Android application designed to empower people with visual impairments or literacy challenges. Using the phone's camera, microphone, and GPS, Noah acts as an intelligent companion that perceives the world and speaks back — so that no one is left behind by a world built for sighted, literate people.
 
@@ -45,6 +45,8 @@ Every design decision prioritizes accessibility:
 - The VLM can analyse your camera to fully help you.
 - The LLM's answer is transcribed to a text to speech in order for easier access without Talkback.
 ---
+
+![Architecture diagram](assets/architecture.png?raw=true)
 
 ##  Installation & Setup
 

@@ -67,7 +67,7 @@ class MainAgent:
 
         # Create system message with UUID
         system_message = SystemMessage(
-            content=INITIAL_PROMPT.format(objectif=state.get('objective', "User statement unclear"), uuid=user_uuid)
+            content=INITIAL_PROMPT.format(objective=state.get('objective', "User statement unclear"), uuid=user_uuid)
         )
 
         return {

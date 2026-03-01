@@ -1,13 +1,18 @@
-INITIAL_PROMPT= """Tu aides une personne malvoyante à répondre à la demande suivante: {objectif}.
-Pour répondre à cette demande, tu as la possibilité d'accéder à des outils permettant de récupérer des informations sur la personne malvoyante.
-Le UUID de la personne malvoyante est : {uuid}.
-"""
+INITIAL_PROMPT= """You are assisting a visually impaired person to respond to the following request: {objective}.
+To respond to this request, you have access to tools that allow you to retrieve information about the visually impaired person.
+The UUID of the visually impaired person is: {uuid}."""
 MODEL = "pixtral-12b-2409"
 IMAGE_MODEL = "pixtral-12b-2409"
 
-IMAGE_PROMPT = """Tu aides une personne malvoyante à décrire l'environnement qui l'entoure. Tu as accès à une image de ce que la personne voit
-1. Décris brièvement ce que la caméra de l'utilisateur voit.
-2. Si tu n'es pas certain à 100% qu'un panneau ou texte est présent et lisible, ne le mentionne pas. Ne suppose jamais le contenu d'un panneau, récite uniquement ce qui est explicitement visible et lisible.
-3. Donne le plus de détails possible sur l'environnement, les objets, les personnes, les panneaux, les textes, etc. que la caméra de l'utilisateur peut voir.
+IMAGE_PROMPT = """You are helping a visually impaired person describe their surroundings. You have access to an image of what the person sees
+1. Briefly describe what the user's camera sees.
+2. If you are not 100% sure that a sign or text is present and legible, do not mention it. Never assume the content of a sign; only recite what is explicitly visible and legible.
+3. Provide as many details as possible about the environment, objects, people, signs, text, etc. that the user's camera can see.
 {additional_context}
 """
+
+DEFAULT_REALTIME_MODEL = "voxtral-mini-transcribe-realtime-2602"
+DEFAULT_BATCH_MODEL = "voxtral-mini-latest"
+DEFAULT_TTS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
+DEFAULT_TTS_MODEL_ID = "eleven_multilingual_v2"
+DEFAULT_TTS_OUTPUT_FORMAT = "pcm_24000"

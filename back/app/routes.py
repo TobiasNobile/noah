@@ -11,6 +11,8 @@ from .utils.audio_processor import AudioProcessor
 from enum import Enum
 import os
 
+from .utils.speech_to_text import stt_from_file, tts_to_wav_file
+
 # Configure logging with DEBUG level
 logging.basicConfig(
     level=logging.DEBUG,
@@ -63,8 +65,6 @@ def register_endpoint():
     generated_uuid_id = sessionFile.generate_uuid()
     logger.debug(f"Generated new session UUID: {generated_uuid_id}")
     return {"uuid": generated_uuid_id, "type": ResultType.REGISTERED.value}
-
-
 
 @app.post("/data")
 def data_endpoint(request: DataEndpointBase):
@@ -148,23 +148,79 @@ def audio_finish_endpoint(request: EndSpeechEndpointBase):
         logger.debug("Saving at audio directory: " + audio_dir)
 
 
-        # Save WAV file
+        #Compute the size of the wav data in bytes and log it
+        wavSize = len(wav_data)
         path = os.path.join(audio_dir, f"{numberOfFilesInDir}.wav")
-        with open(path, "wb") as f:
-            f.write(wav_data)
 
-        logger.info(f"Audio file saved for session {request.uuid}: {path} ({len(wav_data)} bytes, {stats['duration_seconds']:.2f}s)")
+        if wavSize == 0 and numberOfFilesInDir == 0:
+            logger.warning(f"WAV data is empty for session {request.uuid} after processing. This may indicate an issue with audio recording or silence stripping.")
+            return {"type": ResultType.OTHER_ERROR.value, "error": "No valid audio data after processing"}
+        elif wavSize != 0:
+            # Save WAV file
+            with open(path, "wb") as f:
+                f.write(wav_data)
+            logger.info(f"Audio file saved for session {request.uuid}: {path} ({len(wav_data)} bytes, {stats['duration_seconds']:.2f}s)")
+        else:
+            path = os.path.join(audio_dir, f"{numberOfFilesInDir-1}.wav")
 
         # Clear the processor for next recording
         processor.clear()
 
+        # Transcribe audio
+        transcription = stt_from_file(path)
+
+        if not transcription["ok"]:
+            logger.error(f"STT failed for session {request.uuid}: {transcription}")
+            return {"type": ResultType.OTHER_ERROR.value}
+
+        text = transcription["text"]
+        logger.info(f"Transcription for session {request.uuid}: {text}")
+
+        session = sessions[request.uuid]
+
+        # First interaction: set the transcription as the objective
+        if not session.get("objective"):
+            session["objective"] = text
+            logger.debug(f"Set objective for session {request.uuid}: {text}")
+            result = agent.agent.invoke({
+                "messages": [HumanMessage(content=text)],
+                "uuid": request.uuid
+            })
+        else:
+            # Continuation: append the transcription to the existing conversation
+            logger.debug(f"Continuing conversation for session {request.uuid} with: {text}")
+            existing_messages = session.get("messages", [])
+            result = agent.agent.invoke({
+                "messages": existing_messages + [HumanMessage(content=text)],
+                "uuid": request.uuid
+            })
+
+        # Extract the final answer from the agent's messages
+        final_message = result["messages"][-1]
+        answer = final_message.content if hasattr(final_message, 'content') else str(final_message)
+
+        # Update session messages with the full conversation
+        session["messages"] = result["messages"]
+
+        # Generate speech based on answer
+        output_path = os.path.join(audio_dir, f"{numberOfFilesInDir}_response.wav")
+        tts_result = tts_to_wav_file(text=answer, output_path=output_path)
+
+        if not tts_result["ok"]:
+            logger.error(f"TTS failed for session {request.uuid}: {tts_result}")
+            return {"answer": answer, "type": ResultType.OTHER_ERROR.value, "error": tts_result.get("error_message", "TTS failed")}
+
+        #Encode to base64
+        with open(tts_result["wav_path"], "rb") as f:
+            response_audio_data = base64.b64encode(f.read()).decode('utf-8')
+
+        logger.info(f"Generated response audio for session {request.uuid}: {output_path} ({len(response_audio_data)} bytes)")
         return {
-            "type": ResultType.SUCCESS.value,
-            "file_path": path,
-            "file_size": len(wav_data),
-            "duration_seconds": stats["duration_seconds"],
-            "audio_stats": stats
+            "answer": answer,
+            "response_audio_data": response_audio_data,
+            "type": ResultType.SUCCESS.value
         }
+
     except Exception as e:
         logger.error(f"Error finalizing audio: {str(e)}")
         return {"type": ResultType.OTHER_ERROR.value, "error": str(e)}
@@ -217,7 +273,7 @@ def image_endpoint(request: ImageEndpointBase):
 
         logger.debug(f"Writing image data to {image_dir}")
         dataDecoded = base64.b64decode(request.image_data)
-        with open(f"{numberOfFilesInDir}.jpeg", "wb") as f:
+        with open(os.path.join(image_dir, f"{numberOfFilesInDir}.jpeg"), "wb") as f:
             f.write(dataDecoded)
 
         return {"type": ResultType.SUCCESS.value}

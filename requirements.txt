@@ -183,3 +183,4 @@ zipp==3.23.0
 langgraph==1.0.10
 langchain-mistralai==1.1.1
 ipython>=8.0.0
+elevenlabs==2.37.0

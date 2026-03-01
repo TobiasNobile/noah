@@ -48,14 +48,53 @@ Every design decision prioritizes accessibility:
 
 ##  Installation & Setup
 
-### Prerequisites
+### 1. Android (CLIENT)
 
-App:
-- The APK.
+You need to install the app on your device.
+An APK is available in the Releases section.
 
-Server:
-- FastAPI server with pre-installed librairies (requirements.txt)
+### 2. FastAPI (SERVER)
+**Build yourself:**
+You can either deploy the FastAPI backend on yourself by installing the requirements in `back/requirements.txt` and running `fastapi dev ./back/app/routes.py --host {IP} --port {PORT}`.
+You will need to create a .env file in the `back/` directory with the following content:
+```
+MISTRAL_API_KEY=
+GOOGLE_API_KEY=
+ELEVENLABS_API_KEY=
+```
 
+**Use Docker Compose:**
+Alternatively, you can use the provided `docker-compose.yml` to build and run the backend in a containerized env.
+Copy the example environment file and fill in your actual values:
+
+```bash
+cp back/.env.example back/.env
+```
+
+Then edit `back/.env` and add your actual API keys and configuration:
+
+```env
+MISTRAL_API_KEY=your_actual_mistral_api_key
+PORT=32666
+HOST=0.0.0.0
+LOG_LEVEL=DEBUG
+```
+
+Then build and run:
+```bash
+# Build the image
+sudo docker compose build
+
+# Start the service
+sudo docker compose up -d
+
+# View logs
+sudo docker compose logs -f noah-backend
+
+# Stop the service
+sudo docker compose down
+```
+---
 
 ## 👥 Contributors
 

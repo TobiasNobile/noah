@@ -2,9 +2,9 @@ import argparse
 import asyncio
 import os
 import sys
+from base64 import b64encode
 from pathlib import Path
-from typing import AsyncIterator
-import pyaudio
+from typing import Any, AsyncIterator
 
 from dotenv import find_dotenv, load_dotenv
 from elevenlabs.client import ElevenLabs
@@ -20,10 +20,21 @@ from mistralai.models import (
 
 DEFAULT_REALTIME_MODEL = "voxtral-mini-transcribe-realtime-2602"
 DEFAULT_BATCH_MODEL = "voxtral-mini-latest"
+DEFAULT_TTS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
+DEFAULT_TTS_MODEL_ID = "eleven_multilingual_v2"
+DEFAULT_TTS_OUTPUT_FORMAT = "pcm_24000"
 
 
 class STTPipelineError(RuntimeError):
     """Raised when the STT pipeline fails with an actionable message."""
+
+
+def _require_pyaudio() -> Any:
+    try:
+        import pyaudio  # type: ignore
+        return pyaudio
+    except ModuleNotFoundError as exc:
+        raise STTPipelineError("PyAudio is required for realtime microphone mode and local speaker playback.") from exc
 
 
 def build_client() -> Mistral:
@@ -35,6 +46,17 @@ def build_client() -> Mistral:
         raise STTPipelineError("MISTRAL_API_KEY is missing. Add it to your shell env or .env file.")
 
     return Mistral(api_key=api_key)
+
+
+def build_elevenlabs_client() -> ElevenLabs:
+    dotenv_path = find_dotenv(usecwd=True)
+    load_dotenv(dotenv_path if dotenv_path else None)
+
+    api_key = (os.getenv("ELEVENLABS_API_KEY") or "").strip().strip('"').strip("'")
+    if not api_key:
+        raise STTPipelineError("ELEVENLABS_API_KEY is missing. Add it to your shell env or .env file.")
+
+    return ElevenLabs(api_key=api_key)
 
 
 def transcribe_file(client: Mistral, audio_path: Path, model: str, language: str | None) -> str:
@@ -51,8 +73,19 @@ def transcribe_file(client: Mistral, audio_path: Path, model: str, language: str
         raise STTPipelineError(f"Batch STT failed: {exc}") from exc
 
 
+def transcribe_audio_file(audio_path: Path, model: str | None = None, language: str | None = None) -> str:
+    """Transcribe a finalized audio file using Mistral batch STT."""
+    if not audio_path.exists():
+        raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+    client = build_client()
+    resolved_model = model or DEFAULT_BATCH_MODEL
+    return transcribe_file(client, audio_path, resolved_model, language)
+
+
 async def iter_microphone(*, sample_rate: int, chunk_duration_ms: int) -> AsyncIterator[bytes]:
     """Yield microphone PCM16 mono chunks using PyAudio."""
+    pyaudio = _require_pyaudio()
     p = pyaudio.PyAudio()
     chunk_samples = int(sample_rate * chunk_duration_ms / 1000)
 
@@ -105,36 +138,17 @@ async def transcribe_realtime_microphone(
 
 async def text_to_speech(text: str) -> None:
     """Use Eleven Labs to convert text to speech and play it."""
-    api_key = (os.getenv("ELEVENLABS_API_KEY") or "").strip().strip('"').strip("'")
-    if not api_key:
-        raise STTPipelineError("ELEVENLABS_API_KEY is missing. Add it to your shell env or .env file.")
-
-    client = ElevenLabs(api_key=api_key)
-
+    audio_data = await synthesize_speech_bytes(text)
     loop = asyncio.get_running_loop()
 
-    def sync_convert():
-        # Request PCM audio data instead of MP3
-        audio_stream = client.text_to_speech.convert(
-            text=text,
-            voice_id="JBFqnCBsd6RMkjVDRZzb",
-            model_id="eleven_multilingual_v2",
-            output_format="pcm_24000",
-        )
-
-        # Concatenate the audio chunks into a single byte string
-        audio_bytes = b"".join(audio_stream)
-        return audio_bytes
-
-    audio_data = await loop.run_in_executor(None, sync_convert)
-
     def sync_play(data):
+        pyaudio = _require_pyaudio()
         p = pyaudio.PyAudio()
         stream = p.open(
             format=pyaudio.paInt16,
             channels=1,
             rate=24000,
-            output=True
+            output=True,
         )
         stream.write(data)
         stream.stop_stream()
@@ -142,6 +156,47 @@ async def text_to_speech(text: str) -> None:
         p.terminate()
 
     await loop.run_in_executor(None, sync_play, audio_data)
+
+
+async def synthesize_speech_bytes(
+    text: str,
+    voice_id: str = DEFAULT_TTS_VOICE_ID,
+    model_id: str = DEFAULT_TTS_MODEL_ID,
+    output_format: str = DEFAULT_TTS_OUTPUT_FORMAT,
+) -> bytes:
+    """Convert text to speech bytes using ElevenLabs without local playback."""
+    client = build_elevenlabs_client()
+    loop = asyncio.get_running_loop()
+
+    def sync_convert() -> bytes:
+        audio_stream = client.text_to_speech.convert(
+            text=text,
+            voice_id=voice_id,
+            model_id=model_id,
+            output_format=output_format,
+        )
+        return b"".join(audio_stream)
+
+    try:
+        return await loop.run_in_executor(None, sync_convert)
+    except Exception as exc:
+        raise STTPipelineError(f"TTS generation failed: {exc}") from exc
+
+
+async def synthesize_speech_base64(
+    text: str,
+    voice_id: str = DEFAULT_TTS_VOICE_ID,
+    model_id: str = DEFAULT_TTS_MODEL_ID,
+    output_format: str = DEFAULT_TTS_OUTPUT_FORMAT,
+) -> str:
+    """Convert text to speech and return base64-encoded bytes for API transport."""
+    audio_data = await synthesize_speech_bytes(
+        text=text,
+        voice_id=voice_id,
+        model_id=model_id,
+        output_format=output_format,
+    )
+    return b64encode(audio_data).decode("utf-8")
 
 
 async def text_to_speech_input() -> None:
@@ -173,14 +228,9 @@ def main() -> None:
     load_dotenv(dotenv_path if dotenv_path else None)
 
     if args.mode == "batch":
-        client = build_client()
         if args.audio is None:
             raise STTPipelineError("Batch mode requires an audio file path, e.g. python main.py ./audio.wav --mode batch")
-        if not args.audio.exists():
-            raise FileNotFoundError(f"Audio file not found: {args.audio}")
-
-        model = args.model or DEFAULT_BATCH_MODEL
-        transcript = transcribe_file(client, args.audio, model, args.language)
+        transcript = transcribe_audio_file(args.audio, args.model, args.language)
         print(transcript)
         return
     elif args.mode == "tts":

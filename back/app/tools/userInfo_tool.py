@@ -8,24 +8,11 @@ from dotenv import load_dotenv
 from langchain_core.tools import tool
 from pydantic import BaseModel
 
+from back.app.dataclass.dataclass import UserInfo
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-
-class GPS(BaseModel):
-    lat: float
-    lon: float
-
-class userState(Enum):
-    WALKING = "WALKING"
-    RUNNING = "RUNNING"
-    IDLE = "IDLE"
-    TRANSIT = "TRANSIT"
-    UNKNOWN = "UNKNOWN"
-
-class UserInfo(BaseModel):
-    gps: GPS
-    userState: userState
 
 userInfo: Dict[str, UserInfo] = {}
 load_dotenv()

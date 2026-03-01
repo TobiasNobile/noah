@@ -1,74 +1,47 @@
 import base64
-import logging
 from fastapi import FastAPI
-from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
+from . import logger
+from .dataclass.dataclass import DataEndpointBase, SpeechEndpointBase, EndSpeechEndpointBase, MainEndpointBase, \
+    ImageEndpointBase, ResultType
 from .network import sessions as sessionFile
 from .network.sessions import is_session_valid, sessions
 from .agents.MainAgent import MainAgent
-from .tools.userInfo_tool import UserInfo, update_user_info
-from .utils.audio_processor import AudioProcessor
-from enum import Enum
+from .tools.userInfo_tool import update_user_info
 import os
 
+from .utils.audio_processor import get_audio_processor
 from .utils.speech_to_text import stt_from_file, tts_to_wav_file
-
-# Configure logging with DEBUG level
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 agent = MainAgent()
 
 app = FastAPI()
 dirname = os.path.dirname(__file__)
 
-# Store audio processors per session for chunk accumulation
-audio_processors: dict[str, AudioProcessor] = {}
-
-def get_audio_processor(uuid: str) -> AudioProcessor:
-    """Get or create an audio processor for a session."""
-    if uuid not in audio_processors:
-        audio_processors[uuid] = AudioProcessor()
-    return audio_processors[uuid]
-
-class MainEndpointBase(BaseModel):
-    uuid: str
-    question: str
-
-class SpeechEndpointBase(BaseModel):
-    uuid: str
-    audio_data: str  # Base64 encoded audio data
-
-class EndSpeechEndpointBase(BaseModel):
-    uuid: str
-
-class ImageEndpointBase(BaseModel):
-    uuid: str
-    image_data: str  # Base64 encoded image data
-
-class DataEndpointBase(BaseModel):
-    uuid: str
-    user_info: UserInfo
-
-class ResultType(Enum):
-    SUCCESS = "success"
-    REGISTERED = "registered"
-    OTHER_ERROR = "other_error"
-    KEY_ERROR = "key_error"
-
 @app.post("/register")
 def register_endpoint():
+    """
+    Register a new user session and return a unique UUID that will be stored by the user's app.
+    :return: A JSON response containing the generated UUID and the result type indicating success or failure of the operation.
+    """
     generated_uuid_id = sessionFile.generate_uuid()
-    logger.debug(f"Generated new session UUID: {generated_uuid_id}")
-    return {"uuid": generated_uuid_id, "type": ResultType.REGISTERED.value}
+    if generated_uuid_id != "":
+        logger.debug(f"dGenerated new session UUID: {generated_uuid_id}")
+        return {"uuid": generated_uuid_id, "type": ResultType.REGISTERED.value}
+    else:
+        logger.error("Failed to generate a new session UUID")
+        return {"type": ResultType.OTHER_ERROR.value, "error": "Failed to generate session UUID"}
+
 
 @app.post("/data")
 def data_endpoint(request: DataEndpointBase):
-    if not is_session_valid(request.uuid):
+    """
+    Endpoint to receive GPS coordinates and user state information from the user's app.
+    This data is stored in a global dictionary for later retrieval by tools.
+    :param request: DataEndpointBase containing the session UUID and the user information (GPS coordinates and user state).
+    :return: A JSON response indicating the success or failure of the operation, along with any relevant error messages.
+    """
+    if not is_session_valid(request.uuid): #session isn't existing, refuse access
         logger.warning(f"Invalid session UUID: {request.uuid}")
         return {"type": ResultType.KEY_ERROR.value, "error": "Session not found"}
     try:
@@ -79,29 +52,27 @@ def data_endpoint(request: DataEndpointBase):
         logger.error(f"Error processing user info: {str(e)}")
         return {"type": ResultType.OTHER_ERROR.value, "error": str(e)}
 
-
 @app.post("/audio/chunk")
 def audio_chunk_endpoint(request: SpeechEndpointBase):
     """
     Receive a single audio chunk and accumulate it.
     This endpoint is called multiple times as audio is recorded.
+    :param request: SpeechEndpointBase containing the session UUID and the base64 encoded audio chunk.
+    :return: A JSON response containing the size of the received chunk, the total accumulated bytes, the estimated duration of the audio, and the result type indicating success or failure of the operation.
     """
     if not is_session_valid(request.uuid):
         logger.warning(f"Invalid session UUID: {request.uuid}")
         return {"type": ResultType.KEY_ERROR.value, "error": "Session not found"}
-
     try:
-        # Decode base64 audio chunk
-        audio_chunk = base64.b64decode(request.audio_data)
+        audio_chunk = base64.b64decode(request.audio_data) # Decode base64 audio chunk
 
-        # Add chunk to processor
+        # Add a chunk to the processor, which is stored in memory and accumulates until /audio/finish is called.
         processor = get_audio_processor(request.uuid)
         processor.add_chunk(audio_chunk)
 
-        # Get stats
         stats = processor.get_stats()
-        logger.debug(f"Audio chunk received for session {request.uuid}: {len(audio_chunk)} bytes. "
-                    f"Stats: {stats}")
+        # logger.debug(f"Audio chunk received for session {request.uuid}: {len(audio_chunk)} bytes. "
+        #             f"Stats: {stats}")
 
         return {
             "type": ResultType.SUCCESS.value,
@@ -118,7 +89,10 @@ def audio_chunk_endpoint(request: SpeechEndpointBase):
 def audio_finish_endpoint(request: EndSpeechEndpointBase):
     """
     Called when audio recording is complete.
-    Converts accumulated chunks to WAV and saves to disk.
+    Converts accumulated chunks to WAV and saves to disk. This is the point where we decide to call the LLM.
+    In the user app, this is either called when the user stops recording or after a fixed amount of silence.
+    :param request: EndSpeechEndpointBase containing the session UUID.
+    :return: A JSON response containing the transcription result, the generated response audio in base64, and the result type indicating success or failure of the operation.
     """
     if not is_session_valid(request.uuid):
         logger.warning(f"Invalid session UUID: {request.uuid}")
@@ -126,48 +100,49 @@ def audio_finish_endpoint(request: EndSpeechEndpointBase):
 
     try:
         processor = get_audio_processor(request.uuid)
+        if not processor.audio_buffer: #No audio chunks received
+            logger.warning(f"No audio chunks received for session {request.uuid}")
+            return {"type": ResultType.OTHER_ERROR.value, "error": "No audio data recorded"}
+
         stats = processor.get_stats()
 
         if stats["total_bytes"] == 0:
             logger.warning(f"No audio data accumulated for session {request.uuid}")
             return {"type": ResultType.OTHER_ERROR.value, "error": "No audio data recorded"}
 
-        # Convert to WAV format
-        wav_data = processor.to_wav_bytes()
+        wav_data = processor.to_wav_bytes()# Convert to WAV format
 
         # Create directory if it doesn't exist
         audio_dir = os.path.join(dirname, f"temp/cache/audio/{request.uuid}")
 
-        numberOfFilesInDir = 0
+        number_of_files_in_dir = 0
 
         if not os.path.exists(audio_dir):
             os.makedirs(audio_dir)
         else:
-            numberOfFilesInDir = len(os.listdir(audio_dir))
+            number_of_files_in_dir = len(os.listdir(audio_dir))
 
         logger.debug("Saving at audio directory: " + audio_dir)
 
 
         #Compute the size of the wav data in bytes and log it
-        wavSize = len(wav_data)
-        path = os.path.join(audio_dir, f"{numberOfFilesInDir}.wav")
+        wav_size = len(wav_data)
+        path = os.path.join(audio_dir, f"{number_of_files_in_dir}.wav")
 
-        if wavSize == 0 and numberOfFilesInDir == 0:
+        if wav_size == 0 and number_of_files_in_dir == 0: #No valid audio data after processing => don't call LLM.
             logger.warning(f"WAV data is empty for session {request.uuid} after processing. This may indicate an issue with audio recording or silence stripping.")
             return {"type": ResultType.OTHER_ERROR.value, "error": "No valid audio data after processing"}
-        elif wavSize != 0:
-            # Save WAV file
+        elif wav_size != 0: #Valid audio data, save to disk and proceed with transcription
             with open(path, "wb") as f:
                 f.write(wav_data)
             logger.info(f"Audio file saved for session {request.uuid}: {path} ({len(wav_data)} bytes, {stats['duration_seconds']:.2f}s)")
         else:
-            path = os.path.join(audio_dir, f"{numberOfFilesInDir-1}.wav")
+            path = os.path.join(audio_dir, f"{number_of_files_in_dir-1}.wav")
 
-        # Clear the processor for next recording
-        processor.clear()
 
-        # Transcribe audio
-        transcription = stt_from_file(path)
+        processor.clear() # Clear the processor for the next recording
+
+        transcription = stt_from_file(path) # Speech-to-text
 
         if not transcription["ok"]:
             logger.error(f"STT failed for session {request.uuid}: {transcription}")
@@ -178,7 +153,7 @@ def audio_finish_endpoint(request: EndSpeechEndpointBase):
 
         session = sessions[request.uuid]
 
-        # First interaction: set the transcription as the objective
+        # First interaction: set the transcription as the goal
         if not session.get("objective"):
             session["objective"] = text
             logger.debug(f"Set objective for session {request.uuid}: {text}")
@@ -187,7 +162,8 @@ def audio_finish_endpoint(request: EndSpeechEndpointBase):
                 "uuid": request.uuid
             })
         else:
-            # Continuation: append the transcription to the existing conversation
+            pass
+            #Continuation: append the transcription to the existing conversation
             logger.debug(f"Continuing conversation for session {request.uuid} with: {text}")
             existing_messages = session.get("messages", [])
             result = agent.agent.invoke({
@@ -203,7 +179,7 @@ def audio_finish_endpoint(request: EndSpeechEndpointBase):
         session["messages"] = result["messages"]
 
         # Generate speech based on answer
-        output_path = os.path.join(audio_dir, f"{numberOfFilesInDir}_response.wav")
+        output_path = os.path.join(audio_dir, f"{number_of_files_in_dir}_response.wav")
         tts_result = tts_to_wav_file(text=answer, output_path=output_path)
 
         if not tts_result["ok"]:
@@ -227,7 +203,11 @@ def audio_finish_endpoint(request: EndSpeechEndpointBase):
 
 @app.post("/ask")
 def main_endpoint(request: MainEndpointBase):
-
+    """
+    Main endpoint to ask the LLM a question.
+    :param request: MainEndpointBase containing the session UUID and the user's question.
+    :return: A JSON response containing the answer and the result type, depending on the success or failure of the operation.
+    """
     if not is_session_valid(request.uuid): #Invalid session
         logger.warning(f"Invalid session UUID: {request.uuid}")
         return {"type": ResultType.KEY_ERROR.value}
@@ -252,29 +232,30 @@ def main_endpoint(request: MainEndpointBase):
         logger.error(f"Error processing request: {str(e)}")
         return {"type": ResultType.OTHER_ERROR.value, "error": str(e)}
 
-
 @app.post("/image")
 def image_endpoint(request: ImageEndpointBase):
+    """
+    Endpoint to receive an image from the user's app. The image is sent as a base64 encoded string and saved to disk for later retrieval by the image_tool.
+    :param request: ImageEndpointBase containing the session UUID and the base64 encoded image data.
+    :return: A JSON response indicating the success or failure of the operation, along with any relevant error messages.
+    """
     if not is_session_valid(request.uuid):
         logger.debug(f"Invalid session UUID: {request.uuid}")
         return {"type": ResultType.KEY_ERROR.value}
 
     try:
-        logger.debug(f"Received image data for session {request.uuid}: {request.image_data[:30]}...")
-
         image_dir = os.path.join(dirname, f"temp/cache/image/{request.uuid}")
 
-        numberOfFilesInDir = 0
-
+        number_of_files_in_dir = 0
         if not os.path.exists(image_dir):
             os.makedirs(image_dir)
         else:
-            numberOfFilesInDir = len(os.listdir(image_dir))
+            number_of_files_in_dir = len(os.listdir(image_dir))
 
         logger.debug(f"Writing image data to {image_dir}")
-        dataDecoded = base64.b64decode(request.image_data)
-        with open(os.path.join(image_dir, f"{numberOfFilesInDir}.jpeg"), "wb") as f:
-            f.write(dataDecoded)
+        decoded_data = base64.b64decode(request.image_data)
+        with open(os.path.join(image_dir, f"{number_of_files_in_dir}.jpeg"), "wb") as f:
+            f.write(decoded_data)
 
         return {"type": ResultType.SUCCESS.value}
     except Exception as e:

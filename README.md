@@ -89,7 +89,8 @@ After running the command, type text and press Enter to hear it.
 ## Smoke test for integration
 
 ```bash
-python scripts/smoke_integration.py --audio ./audio.wav --text "Hello from Noah"
+python -m scripts.smoke_integration --audio ./audio.wav --text "Hello from Noah"
+# or: python scripts/smoke_integration.py --audio ./audio.wav --text "Hello from Noah"
 ```
 
 ## Notes

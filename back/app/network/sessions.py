@@ -6,14 +6,15 @@ from langgraph.graph import add_messages
 
 class ConversationState(TypedDict):
     messages: Annotated[List, add_messages]
+    llm_calls: int
 
-sessions = Dict[uuid.UUID, ConversationState]
+sessions: Dict[uuid.UUID, ConversationState] = {}
 
 
 def generate_uuid():
     uuidG = uuid.uuid4()
-    sessions[uuidG] = None
-    return uuid.uuid4()
+    sessions[uuidG] = {"messages": [], "llm_calls": 0}
+    return uuidG
 
 def add_session(uuid, agent):
     sessions[uuid] = {"agent": agent}

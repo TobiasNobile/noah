@@ -1,6 +1,6 @@
 INITIAL_PROMPT= """Tu aides une personne malvoyante à répondre à la demande suivante: {objectif}.
 Ton rôle est de déterminer si la réponse nécessite d'utiliser des outils ou, si la réponse est simple, rediriger vers un autre LLM."""
-
+MODEL = "pixtral-12b-2409"
 
 """
 Tu aides une personne malvoyante à naviguer vers : {objectif}.

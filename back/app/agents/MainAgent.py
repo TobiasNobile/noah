@@ -1,27 +1,95 @@
 import os
+from typing import Literal
+
+from langchain_core.messages import SystemMessage, ToolMessage
+from langchain_mistralai import ChatMistralAI
+from langgraph.constants import END, START
+from langgraph.graph import StateGraph
 from mistralai import Mistral
-from pathlib import Path
 from dotenv import load_dotenv
 
-from back.app.config.config import INITIAL_PROMPT
+from back.app.config.config import MODEL
+from back.app.network.sessions import ConversationState
+from back.app.tools.tools import tools, tools_by_name
 
 load_dotenv()
 
 client = Mistral(api_key=os.environ["MISTRAL_API_KEY"])
 
+llm = ChatMistralAI(model = MODEL, temperature=0.1)
+llm_with_tools = llm.bind_tools(tools)
 
-class NavigationAgent:
-    def __init__(self, objectif:str):
-        self.history = [
+class MainAgent:
+    def __init__(self):
+        agent_builder = StateGraph(ConversationState)
+        agent_builder.add_node("llm_call", self.llm_call)
+        agent_builder.add_node("tool_node", self.tool_node)
+
+        agent_builder.add_edge(START, "llm_call")
+        agent_builder.add_conditional_edges(
+            "llm_call",
+            self.should_continue,
             {
-                "role":"system",
-                "content": INITIAL_PROMPT.format(objectif=objectif)
+                "tool_node": "tool_node",
+                END: END
             }
-        ]
+        )
+        agent_builder.add_edge("tool_node", "llm_call")
 
-    def ask(self, question, frame:dict):
+        self.agent = agent_builder.compile()
 
-        response = client.chat.complete(model="pixtral-12b-2409", messages=self.history, temperature=0.1)
-        answer = response.choices[0].message.content
-        self.history.append({"role": "assistant", "content": answer})
-        return answer
+    def generate_graph_image(self):
+        try:
+            graph_image = self.agent.get_graph(xray=True).draw_mermaid_png()
+            with open("mainAgent_graph.png", "wb") as f:
+                f.write(graph_image)
+            print("Graph saved to mainAgent_graph.png")
+        except Exception as e:
+            print(f"Could not save graph image: {e}")
+            try:
+                mermaid_graph = self.agent.get_graph(xray=True).draw_mermaid()
+                with open("mainAgent_graph.mmd", "w") as f:
+                    f.write(mermaid_graph)
+                print("Graph saved to mainAgent_graph.mmd")
+            except Exception as e2:
+                print(f"Could not save graph: {e2}")
+
+    def llm_call(self, state: ConversationState):
+        """LLM decides whether to call a tool or not"""
+
+        return {
+            "messages": [
+                llm_with_tools.invoke(
+                    [
+                        SystemMessage(
+                            content="You are a helpful assistant tasked with performing arithmetic on a set of inputs."
+                        )
+                    ]
+                    + state["messages"]
+                )
+            ],
+            "llm_calls": state.get('llm_calls', 0) + 1
+        }
+
+    def tool_node(self, state: ConversationState):
+        """Performs the tool call"""
+
+        result = []
+        for tool_call in state["messages"][-1].tool_calls:
+            tool = tools_by_name[tool_call["name"]]
+            observation = tool.invoke(tool_call["args"])
+            result.append(ToolMessage(content=observation, tool_call_id=tool_call["id"]))
+        return {"messages": result}
+
+    def should_continue(self, state: ConversationState) -> Literal["tool_node", END]:
+        """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
+
+        messages = state["messages"]
+        last_message = messages[-1]
+
+        # If the LLM makes a tool call, then perform an action
+        if last_message.tool_calls:
+            return "tool_node"
+
+        # Otherwise, we stop (reply to the user)
+        return END

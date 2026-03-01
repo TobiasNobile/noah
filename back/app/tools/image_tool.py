@@ -5,8 +5,14 @@ from langchain_core.tools import tool
 
 
 @tool
-def image_tool(uuid):
-    pass
+def image_tool() -> str:
+    """
+    Get the description of what the user sees.
+    """
+    return ("The image is a photo of a cat sitting on a sofa. "
+            "The cat is gray with white paws and has green eyes. "
+            "The sofa is blue and has a floral pattern. "
+            "The background shows a living room with a window and some plants.")
 
 
 def encode_image(image_path):

@@ -46,6 +46,9 @@ Every design decision prioritizes accessibility:
 - The LLM's answer is transcribed to a text to speech in order for easier access without Talkback.
 ---
 
+![Home screen](assets/home_screen.png?raw=true)
+![Settings screen](assets/settings_screen.png?raw=true)
+
 ![Architecture diagram](assets/architecture.png?raw=true)
 
 ##  Installation & Setup

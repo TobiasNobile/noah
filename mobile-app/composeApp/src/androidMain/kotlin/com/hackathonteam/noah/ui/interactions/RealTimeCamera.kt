@@ -135,22 +135,24 @@ fun CameraPreview(
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
                 .also { analysis ->
+                    var lastCaptureMs = 0L
                     analysis.setAnalyzer(analysisExecutor) { imageProxy ->
-                        //Add a cooldown to avoid sending too many frames to the server.
-                        if(System.currentTimeMillis() - imageProxy.imageInfo.timestamp / 1_000_000L < SEND_REQUEST_COOLDOWN_MS) {
+                        val now = System.currentTimeMillis()
+                        // Skip frames that arrive before the cooldown has elapsed.
+                        if (now - lastCaptureMs < SEND_REQUEST_COOLDOWN_MS) {
                             imageProxy.close()
                             return@setAnalyzer
-                        } else {
+                        }
+                        lastCaptureMs = now
                         try {
                             val jpeg = compressFrame(imageProxy)
                             _latestFrame.value = jpeg
                             Log.d(TAG, "Frame captured: ${jpeg.size} bytes")
                             onFrameCaptured(jpeg)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Frame compression failed", e)
-                            } finally {
-                                imageProxy.close()
-                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Frame compression failed", e)
+                        } finally {
+                            imageProxy.close()
                         }
                     }
                 }

@@ -1,12 +1,8 @@
-# 🦻 Noah — Enpowering visually impaired people
-
-
-## A brief description
+![](Noah_wallpaper.png?raw=true)
 
 **Noah** is an Android application designed to empower people with visual impairments or literacy challenges. Using the phone's camera, microphone, and GPS, Noah acts as an intelligent companion that perceives the world and speaks back — so that no one is left behind by a world built for sighted, literate people.
 
-Noah is built around one core belief: **technology should adapt to people, not the other way around.**
-
+Noah is built around one core belief: **technology should adapt to people, not the other way around.** 
 
 ## For which uses ?
 
@@ -15,7 +11,6 @@ Blind or visually impaired users can activate Noah and explore their surrounding
 
 ###  Reading assistance for illiterate users
 For people who cannot read — whether due to illiteracy, functional illiteracy, or a language barrier — Noah can read any document, sign, or text aloud. Simply point the camera at a page, a label, or a screen, and Noah will read and explain the content in plain spoken language.
-
 
 ##  How it works
 
@@ -30,7 +25,7 @@ Everything is designed to work **eyes closed, hands free.**
 
 ---
 
-## ♿ Accessibility first
+## Accessibility first
 
 Every design decision prioritizes accessibility:
 
@@ -41,67 +36,33 @@ Every design decision prioritizes accessibility:
 - Configurable server settings for offline / local deployments
 
 ---
-
-## 🛠️ Tech stack
-
-| Component | Technology |
-|---|---|
-| Platform | Android (Kotlin) |
-| UI | Jetpack Compose |
-| AI | Mistral AI (custom FastAPI backend) |
-| Audio | AudioRecord (PCM-16 mono) |
-| Vision | CameraX |
-| Location | GPS via FusedLocationProvider |
-| Accessibility | TalkBack, TTS, Haptic feedback |
-| Storage | Internal Storage (`getFilesDir()`) |
-
+## Features
+- Deployable localhost fastAPI server that can used by the Noah app (change the settings in the app).
+- Speech to text to transform user vocal request to a text request, understable for a LLM.
+- Agent that has the capability to choose the tools he needs.
+- The LLM can retreive some popular places around you like restaurant names.
+- The LLM can retreive your city and street.
+- The VLM can analyse your camera to fully help you.
+- The LLM's answer is transcribed to a text to speech in order for easier access without Talkback.
 ---
 
-## 🚀 Installation & Setup
+##  Installation & Setup
 
 ### Prerequisites
 
-- Android Studio **Hedgehog** or later
-- Android device or emulator running **API 26+**
-- A deployed Noah backend (FastAPI + Mistral AI)
+App:
+- The APK.
 
-### 1. Clone the repository
+Server:
+- FastAPI server with pre-installed librairies (requirements.txt)
 
-```bash
-git clone https://github.com/your-org/noah-android.git
-cd noah-android
-```
-
-### 2. Open in Android Studio
-
-```
-File > Open > select the project folder
-```
-
-### 3. Run the app
-
-```
-Run > Run 'app'  (or Shift+F10)
-```
-
-### 4. Configure the server
-
-On first launch, tap the **gear icon** in the top-right corner to enter your backend IP address and port. Settings are saved automatically to the device's internal storage.
-
-> Default: `localhost:32666`
-
----
 
 ## 👥 Contributors
 
-| Name | Role |
-|---|---|
-| **GoldRen** | Android development |
-| **Theo** | Backend architecture & Mistral AI API |
+| Name | Role                                  |
+|---|---------------------------------------|
+| **GoldRen** | Android development  + Vision model   |
+| **Theo** | Android development + Backend architecture & Mistral AI API |
 | **Ayush** | Backend architecture & Mistral AI API |
+| **Harsh** | Backend architecture & Mistral AI API |
 
----
-
-## 📄 License
-
-Built at a hackathon. All rights reserved.

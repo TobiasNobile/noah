@@ -1,13 +1,13 @@
 FROM python:3.11-slim
 
-ARG PORT=32666
-ARG HOST=0.0.0.0
+WORKDIR /app
 
-WORKDIR /code
+COPY requirements.txt .
 
-COPY ./requirements.txt /code/requirements.txt
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./app /code/app
+COPY back/ .
 
-CMD uvicorn app.routes:app --host $HOST --port $PORT
+EXPOSE 8000
+
+CMD ["uvicorn", "app.routes:app", "--host", "0.0.0.0", "--port", "8000"]

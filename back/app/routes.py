@@ -6,6 +6,7 @@ from langchain_core.messages import HumanMessage
 from .network import sessions
 from .network.sessions import is_session_valid
 from .agents.MainAgent import MainAgent
+from .tools.userInfo_tool import UserInfo, update_user_info
 from .utils.audio_processor import AudioProcessor
 from enum import Enum
 import os
@@ -47,6 +48,10 @@ class ImageEndpointBase(BaseModel):
     uuid: str
     image_data: str  # Base64 encoded image data
 
+class DataEndpointBase(BaseModel):
+    uuid: str
+    user_info: UserInfo
+
 class ResultType(Enum):
     SUCCESS = "success"
     REGISTERED = "registered"
@@ -58,6 +63,21 @@ def register_endpoint():
     generated_uuid_id = sessions.generate_uuid()
     logger.debug(f"Generated new session UUID: {generated_uuid_id}")
     return {"uuid": generated_uuid_id, "type": ResultType.REGISTERED.value}
+
+
+
+@app.post("/data")
+def data_endpoint(request: DataEndpointBase):
+    if not is_session_valid(request.uuid):
+        logger.warning(f"Invalid session UUID: {request.uuid}")
+        return {"type": ResultType.KEY_ERROR.value, "error": "Session not found"}
+    try:
+        logger.debug(f"Received user info for session {request.uuid}: {request.user_info}")
+        update_user_info(request.uuid, request.user_info)
+        return {"type": ResultType.SUCCESS.value}
+    except Exception as e:
+        logger.error(f"Error processing user info: {str(e)}")
+        return {"type": ResultType.OTHER_ERROR.value, "error": str(e)}
 
 
 @app.post("/audio/chunk")

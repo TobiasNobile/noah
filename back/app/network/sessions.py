@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 class ConversationState(TypedDict):
+    objective: str
     messages: Annotated[List, add_messages]
     llm_calls: int
     uuid: str  # Store the user's UUID to allow research on him
@@ -20,7 +21,7 @@ sessions: Dict[str, ConversationState] = {}
 
 def generate_uuid():
     uuidG = str(uuid.uuid4())
-    sessions[uuidG] = {"messages": [], "llm_calls": 0, "uuid": uuidG}
+    sessions[uuidG] = {"messages": [], "llm_calls": 0, "uuid": uuidG, "objective": ""}
     return uuidG
 
 def add_session(uuid_str: str, agent):

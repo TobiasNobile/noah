@@ -3,8 +3,8 @@ import logging
 from fastapi import FastAPI
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
-from .network import sessions
-from .network.sessions import is_session_valid
+from .network import sessions as sessionFile
+from .network.sessions import is_session_valid, sessions
 from .agents.MainAgent import MainAgent
 from .tools.userInfo_tool import UserInfo, update_user_info
 from .utils.audio_processor import AudioProcessor
@@ -60,7 +60,7 @@ class ResultType(Enum):
 
 @app.post("/register")
 def register_endpoint():
-    generated_uuid_id = sessions.generate_uuid()
+    generated_uuid_id = sessionFile.generate_uuid()
     logger.debug(f"Generated new session UUID: {generated_uuid_id}")
     return {"uuid": generated_uuid_id, "type": ResultType.REGISTERED.value}
 
@@ -181,6 +181,7 @@ def main_endpoint(request: MainEndpointBase):
     try:
         # Invoke the agent with the user's question
         logger.debug(f"Invoking agent for session {request.uuid} with question: {request.question}")
+        sessions[request.uuid]["objective"] = request.question
         result = agent.agent.invoke({
             "messages": [HumanMessage(content=request.question)],
             "uuid": request.uuid

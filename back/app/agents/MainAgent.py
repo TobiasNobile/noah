@@ -9,7 +9,7 @@ from langgraph.graph import StateGraph
 from mistralai import Mistral
 from dotenv import load_dotenv
 
-from back.app.config.config import MODEL
+from back.app.config.config import MODEL, INITIAL_PROMPT
 from back.app.network.sessions import ConversationState
 from back.app.tools.tools import tools, tools_by_name
 
@@ -67,12 +67,7 @@ class MainAgent:
 
         # Create system message with UUID
         system_message = SystemMessage(
-            content=f"""You are a helpful assistant tasked with performing arithmetic on a set of inputs.
-
-Current User UUID: {user_uuid}
-
-You have access to user information through tools. When you need to retrieve user data, use the userInfo tool with this UUID.
-Always be helpful and provide accurate information to the user."""
+            content=INITIAL_PROMPT.format(objectif=state.get('objective', "User statement unclear"), uuid=user_uuid)
         )
 
         return {
@@ -82,7 +77,8 @@ Always be helpful and provide accurate information to the user."""
                 )
             ],
             "llm_calls": state.get('llm_calls', 0) + 1,
-            "uuid": state.get('uuid')  # Pass uuid through
+            "uuid": state.get('uuid'),
+            "objective": state.get('objective', "User statement unclear")
         }
 
     def tool_node(self, state: ConversationState):

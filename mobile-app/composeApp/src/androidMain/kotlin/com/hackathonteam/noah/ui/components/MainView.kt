@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hackathonteam.noah.R
 import com.hackathonteam.noah.tracking.TrackingManager
+import com.hackathonteam.noah.ui.interactions.CameraPreview
 import java.io.File
 import java.util.*
 
@@ -110,6 +111,13 @@ fun MainScreen(
     val context = LocalContext.current
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // Hidden camera preview — 1×1 dp so it is invisible to the user but keeps
+        // the CameraX pipeline alive and continuously updates latestCameraFrame.
+        CameraPreview(
+            modifier = Modifier.size(1.dp),
+            isActive = TrackingManager.isTrackingActive,
+        )
+
         GiantAccessibleButton(
             isTrackingActive = TrackingManager.isTrackingActive,
             onClick = {

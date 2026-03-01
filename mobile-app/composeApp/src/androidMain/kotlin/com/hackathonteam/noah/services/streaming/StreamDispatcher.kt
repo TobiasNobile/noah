@@ -52,6 +52,9 @@ object StreamDispatcher {
 
     // --- Interruption de la lecture audio ---
     @Volatile private var currentAudioTrack: AudioTrack? = null
+    @Volatile private var isPlaybackInterrupted: Boolean = false
+    /** True while the AI response audio is playing — chunks and VAD are suppressed. */
+    @Volatile private var isAiSpeaking: Boolean = false
 
     private val _sessionUuid = MutableStateFlow<String?>(null)
     private var sessionUuid: String?
@@ -95,6 +98,10 @@ object StreamDispatcher {
 
         audioCollectorJob = scope.launch {
             MicrophoneSensor.audioChunks.collect { pcm ->
+                // Discard microphone data while the AI is speaking — the mic
+                // picks up the speaker output and we don't want to send it.
+                if (isAiSpeaking) return@collect
+
                 val uuid = sessionUuid
                 if (uuid != null) {
                     scope.launch(Dispatchers.IO) {
@@ -117,7 +124,7 @@ object StreamDispatcher {
                 }
 
                 if (isVoiceActivity(pcm)) {
-                    // L'utilisateur parle → interrompre immédiatement le LLM
+                    // User spoke → interrupt the AI immediately
                     interruptResponseAudio()
 
                     hasVoiceActivity = true
@@ -138,7 +145,7 @@ object StreamDispatcher {
         }
     }
 
-    fun stop(resetSession: Boolean = false) {
+    fun stop(resetSession: Boolean = true) {
         audioCollectorJob?.cancel()
         gpsCollectorJob?.cancel()
         userInfoJob?.cancel()
@@ -153,7 +160,9 @@ object StreamDispatcher {
 
         interruptResponseAudio()
 
-        val uuid = sessionUuid
+        if (resetSession) sessionUuid = null     // clear immediately, before the flush coroutine runs
+
+        val uuid = sessionUuid                    // null if reset, old value otherwise
         if (uuid != null) {
             scope.launch(Dispatchers.IO) {
                 val remaining = audioMutex.withLock {
@@ -165,14 +174,13 @@ object StreamDispatcher {
                     val ok = NoahApiClient.sendAudioChunk(uuid, chunk)
                     if (!ok) Log.w(TAG, "Flush: audio chunk upload failed for uuid=$uuid")
                 }
-                val ok = NoahApiClient.finishAudio(uuid)
-                if (!ok) Log.w(TAG, "POST /audio/finish failed for uuid=$uuid")
+                val result = NoahApiClient.finishAudio(uuid)
+                if (result is FinishAudioResult.Error) Log.w(TAG, "POST /audio/finish failed on stop — ${result.reason}")
             }
         } else {
             scope.launch { audioMutex.withLock { pendingAudioChunks.clear() } }
         }
 
-        if (resetSession) sessionUuid = null
         Log.d(TAG, "StreamDispatcher stopped (resetSession=$resetSession)")
     }
 
@@ -185,6 +193,8 @@ object StreamDispatcher {
      * Appelé dès que la voix de l'utilisateur est détectée.
      */
     private fun interruptResponseAudio() {
+        isPlaybackInterrupted = true          // signal the playback loop to exit immediately
+        isAiSpeaking = false                  // re-enable mic chunk sending immediately
         currentAudioTrack?.let { track ->
             try {
                 if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
@@ -208,7 +218,7 @@ object StreamDispatcher {
 
     private suspend fun onSilenceTimeout() {
         val uuid = sessionUuid
-        Log.d(TAG, "Silence timeout — sending /audio/finish for uuid=$uuid")
+        Log.d(TAG, "Silence timeout — sending image then /audio/finish for uuid=$uuid")
         hasVoiceActivity = false
         silenceJob = null
 
@@ -218,23 +228,38 @@ object StreamDispatcher {
         }
 
         withContext(Dispatchers.IO) {
-            val ok = withTimeoutOrNull(ANSWER_WAIT_TIMEOUT_MS) {
+            // 1. Send the latest camera frame BEFORE finishing the audio turn.
+            val frame = latestCameraFrame.value
+            if (frame != null) {
+                val ok = NoahApiClient.sendImage(uuid, frame)
+                if (ok) Log.d(TAG, "Image sent before /audio/finish — uuid=$uuid  bytes=${frame.size}")
+                else    Log.w(TAG, "Image upload failed before /audio/finish — uuid=$uuid")
+            } else {
+                Log.d(TAG, "No camera frame available to send before /audio/finish")
+            }
+
+            // 2. Signal the server to assemble the WAV and run the LLM.
+            //    Wait up to 2 minutes for the answer + response audio.
+            val result = withTimeoutOrNull(ANSWER_WAIT_TIMEOUT_MS) {
                 NoahApiClient.finishAudio(uuid)
             }
 
             when {
-                ok == null -> {
+                result == null -> {
                     Log.w(TAG, "LLM answer timed out after ${ANSWER_WAIT_TIMEOUT_MS / 1000}s — stopping tracking")
-                    withContext(Dispatchers.Main) {
-                        TrackingManager.stopListening()
-                    }
+                    withContext(Dispatchers.Main) { TrackingManager.stopListening() }
                 }
-                ok == true -> {
-                    Log.d(TAG, "/audio/finish succeeded for uuid=$uuid")
+                result is FinishAudioResult.Success -> {
+                    Log.d(TAG, "/audio/finish succeeded — answer: ${result.answer.take(120)}")
+                    if (result.audioBytes.isNotEmpty()) {
+                        playResponseAudio(result.audioBytes)
+                    } else {
+                        Log.d(TAG, "No response audio bytes received")
+                    }
                     dispatch(triggeredByVoice = true)
                 }
-                else -> {
-                    Log.w(TAG, "/audio/finish failed for uuid=$uuid")
+                result is FinishAudioResult.Error -> {
+                    Log.w(TAG, "/audio/finish failed for uuid=$uuid — ${result.reason}")
                 }
             }
         }
@@ -244,11 +269,11 @@ object StreamDispatcher {
     // Audio playback
     // -------------------------------------------------------------------------
 
-    private fun playResponseAudio(wavBytes: ByteArray) {
+    private suspend fun playResponseAudio(wavBytes: ByteArray) = withContext(Dispatchers.IO) {
         try {
             if (wavBytes.size < 44) {
                 Log.w(TAG, "Response audio too small to be a valid WAV (${wavBytes.size} bytes)")
-                return
+                return@withContext
             }
 
             val channels      = ((wavBytes[23].toInt() and 0xFF) shl 8) or (wavBytes[22].toInt() and 0xFF)
@@ -266,7 +291,7 @@ object StreamDispatcher {
 
             if (pcmLength <= 0) {
                 Log.w(TAG, "WAV file has no PCM data after header")
-                return
+                return@withContext
             }
 
             Log.d(TAG, "Playing response audio: sampleRate=$sampleRate  channels=$channels  bits=$bitsPerSample  pcmBytes=$pcmLength")
@@ -291,23 +316,34 @@ object StreamDispatcher {
 
             audioTrack.write(wavBytes, pcmOffset, pcmLength)
 
-            // Enregistrer la référence AVANT de jouer, pour permettre l'interruption
+            // Reset the interrupt flag, mark AI as speaking, and store the track reference
+            // BEFORE playing so interruptResponseAudio() can act on it immediately.
+            isPlaybackInterrupted = false
+            isAiSpeaking = true
             currentAudioTrack = audioTrack
             audioTrack.play()
 
             val totalFrames = pcmLength / (bitsPerSample / 8) / channels
-            while (audioTrack.playState == AudioTrack.PLAYSTATE_PLAYING &&
-                audioTrack.playbackHeadPosition < totalFrames) {
-                Thread.sleep(50)
+            // Poll until playback finishes OR the interrupt flag is set by voice activity.
+            while (!isPlaybackInterrupted &&
+                   audioTrack.playState == AudioTrack.PLAYSTATE_PLAYING &&
+                   audioTrack.playbackHeadPosition < totalFrames) {
+                Thread.sleep(30)
             }
 
-            // Libérer seulement si pas déjà interrompu
+            // Release only if not already released by interruptResponseAudio().
             if (currentAudioTrack === audioTrack) {
                 audioTrack.stop()
                 audioTrack.release()
                 currentAudioTrack = null
             }
-            Log.d(TAG, "Response audio playback complete")
+            isAiSpeaking = false
+
+            if (isPlaybackInterrupted) {
+                Log.d(TAG, "Response audio playback interrupted (user spoke)")
+            } else {
+                Log.d(TAG, "Response audio playback complete")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error playing response audio: ${e.message}", e)
         }

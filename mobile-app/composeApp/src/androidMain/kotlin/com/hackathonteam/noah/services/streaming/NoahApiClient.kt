@@ -12,8 +12,9 @@ import java.net.URL
 
 private const val TAG = "NoahApiClient"
 
-private const val CONNECT_TIMEOUT_MS = 10_000
-private const val READ_TIMEOUT_MS    = 15_000
+private const val CONNECT_TIMEOUT_MS      = 10_000
+private const val READ_TIMEOUT_MS         = 15_000
+private const val AUDIO_FINISH_TIMEOUT_MS = 120_000   // 2 minutes — LLM can be slow
 
 private var number_of_tries = 3
 
@@ -21,10 +22,21 @@ private var number_of_tries = 3
  * Describes every outcome that [NoahApiClient.register] can return.
  */
 sealed class RegisterResult {
-    /** Session successfully registered; [uuid] identifies all subsequent requests. */
     data class Registered(val uuid: String) : RegisterResult()
-    /** The server returned `{"type": "ERROR"}` or a network / parse error occurred. */
     data class Error(val reason: String) : RegisterResult()
+}
+
+/**
+ * Describes every outcome that [NoahApiClient.finishAudio] can return.
+ */
+sealed class FinishAudioResult {
+    /** Server processed the audio and returned an LLM answer + response audio. */
+    data class Success(
+        val answer: String,
+        /** Raw WAV bytes decoded from the base64 response_audio_data field. */
+        val audioBytes: ByteArray,
+    ) : FinishAudioResult()
+    data class Error(val reason: String) : FinishAudioResult()
 }
 
 object UserInfo {
@@ -309,31 +321,42 @@ object NoahApiClient {
         }
     }
 
-    fun finishAudio(uuid: String): Boolean {
+    fun finishAudio(uuid: String): FinishAudioResult {
         val jsonBody = JSONObject().apply {
             put("uuid", uuid)
         }.toString()
 
         return try {
-            val raw = postJson(audioFinishEndpoint, jsonBody)
+            val raw  = postJson(audioFinishEndpoint, jsonBody, readTimeoutMs = AUDIO_FINISH_TIMEOUT_MS)
+            if (raw.isBlank()) {
+                Log.w(TAG, "POST /audio/finish — empty response body for uuid=$uuid")
+                return FinishAudioResult.Error("Empty response from server")
+            }
             val json = JSONObject(raw)
             when (json.optString("type")) {
                 "success" -> {
-                    Log.d(TAG, "POST /audio/finish succeeded — uuid=$uuid")
-                    true
+                    val answer      = json.optString("answer", "")
+                    val audioBase64 = json.optString("response_audio_data", "")
+                    val audioBytes  = if (audioBase64.isNotEmpty())
+                        Base64.decode(audioBase64, Base64.NO_WRAP)
+                    else
+                        ByteArray(0)
+                    Log.d(TAG, "POST /audio/finish succeeded — uuid=$uuid  answer=${answer.take(80)}  audioBytes=${audioBytes.size}")
+                    FinishAudioResult.Success(answer = answer, audioBytes = audioBytes)
                 }
                 "key_error" -> {
                     Log.w(TAG, "POST /audio/finish → key_error for uuid=$uuid")
-                    false
+                    FinishAudioResult.Error("key_error")
                 }
                 else -> {
-                    Log.w(TAG, "POST /audio/finish → unexpected type=${json.optString("type")}")
-                    false
+                    val errMsg = json.optString("error", "unknown error")
+                    Log.w(TAG, "POST /audio/finish → type=${json.optString("type")}  error=$errMsg")
+                    FinishAudioResult.Error(errMsg)
                 }
             }
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Log.e(TAG, "POST /audio/finish failed: ${e.message}")
-            false
+            FinishAudioResult.Error(e.message ?: "Exception")
         }
     }
 
@@ -342,13 +365,17 @@ object NoahApiClient {
     // -------------------------------------------------------------------------
 
     @Throws(IOException::class)
-    private fun postJson(endpoint: String, jsonBody: String?): String {
+    private fun postJson(
+        endpoint: String,
+        jsonBody: String?,
+        readTimeoutMs: Int = READ_TIMEOUT_MS,
+    ): String {
         val url  = URL(endpoint)
         val conn = url.openConnection() as HttpURLConnection
         try {
             conn.requestMethod  = "POST"
             conn.connectTimeout = CONNECT_TIMEOUT_MS
-            conn.readTimeout    = READ_TIMEOUT_MS
+            conn.readTimeout    = readTimeoutMs
             conn.doOutput       = true
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             conn.setRequestProperty("Accept", "application/json")

@@ -1,7 +1,10 @@
 import logging
+import os
 from enum import Enum
 from typing import Dict
 
+import requests
+from dotenv import load_dotenv
 from langchain_core.tools import tool
 from pydantic import BaseModel
 
@@ -25,6 +28,7 @@ class UserInfo(BaseModel):
     userState: userState
 
 userInfo: Dict[str, UserInfo] = {}
+load_dotenv()
 
 def update_user_info(uuid: str, user_info: UserInfo):
     """Update the user information in the global dictionary."""
@@ -57,3 +61,52 @@ def userInfo_gpsToCity_tool(uuid: str) -> str:
     # TODO: use a geocoding API to convert the GPS coordinates to a city name.
     return "Paris, La Défense"
 
+@tool
+def userInfo_gpsGetPlacesAround(uuid: str) -> str:
+    """Get the places around the user from the GPS coordinates. The research is based on the user's UUID.
+
+    Args:
+        uuid (str): The UUID of the user session."""
+
+    retrievedUserInfo = retrieve_user_info(uuid)
+    if(retrievedUserInfo is None):
+        logger.error(f"No user info found for UUID: {uuid}")
+        return "No user info found for this UUID."
+    else:
+        jsonObject = {
+            "includedPrimaryTypes": [
+                "restaurant",
+                "cafe",
+                "bar"
+            ],
+            "maxResultCount": 10,
+            "locationRestriction": {
+                "circle": {
+                    "center": {
+
+                        "latitude": retrievedUserInfo.gps.lat,
+                        "longitude": retrievedUserInfo.gps.lon
+                    },
+                    "radius": 20
+                }
+            }
+        }
+
+        header = {
+            "X-Goog-FieldMask": "places.displayName",
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": os.getenv("GOOGLE_API_KEY")
+        }
+        x = requests.post("https://places.googleapis.com/v1/places:searchNearby", json=jsonObject, headers=header)
+        if x.status_code == 200:
+            print("Request successful!")
+            print(x.json())
+            jsonResult = x.json()
+            proximitedPlaces = "Places around the user:\n"
+            if jsonResult["places"]:
+                for place in jsonResult["places"]:
+                    proximitedPlaces += f"- {place['displayName']['text']}\n"
+
+            return proximitedPlaces
+        else:
+            return "No places found around the user or the tool is not working properly."

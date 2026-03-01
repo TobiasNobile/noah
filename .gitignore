@@ -20,3 +20,5 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+back/app/temp/cache/audio/*
+back/app/temp/cache/image/*

@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
+import com.hackathonteam.noah.services.streaming.NoahApiClient
 import com.hackathonteam.noah.ui.components.App
 
 class MainActivity : ComponentActivity() {
@@ -50,6 +51,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        // Charge l'IP et le port depuis le stockage interne
+        NoahApiClient.init(this)
 
         // Request GPS permission at startup if not already granted
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)

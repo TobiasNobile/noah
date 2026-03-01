@@ -25,7 +25,7 @@ jobs:
         run: chmod +x mobile-app/gradlew
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew :androidApp:assembleDebug
         working-directory: mobile-app
 
       - name: Upload APK artifact
@@ -33,4 +33,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: noah-debug-apk
-          path: mobile-app/composeApp/build/outputs/apk/debug/*.apk
+          path: mobile-app/androidApp/build/outputs/apk/debug/*.apk

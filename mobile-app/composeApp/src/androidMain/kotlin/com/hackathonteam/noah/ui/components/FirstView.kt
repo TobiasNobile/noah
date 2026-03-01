@@ -1,6 +1,6 @@
 package com.hackathonteam.noah.ui.components
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.res.painterResource
 import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
@@ -39,7 +39,6 @@ fun App() {
     val context: Context = LocalContext.current
     var textToSpeech by remember { mutableStateOf<TextToSpeech?>(null) }
 
-    // Initialisation synthèse vocale
     LaunchedEffect(Unit) {
         textToSpeech = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -48,11 +47,8 @@ fun App() {
         }
     }
 
-    // FIX: DisposableEffect placé AVANT le return du composable (pas après une accolade fermante manquante)
     DisposableEffect(Unit) {
-        onDispose {
-            textToSpeech?.shutdown()
-        }
+        onDispose { textToSpeech?.shutdown() }
     }
 
     MaterialTheme(
@@ -67,10 +63,7 @@ fun App() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            // FIX: accolades correctement imbriquées
             Box(modifier = Modifier.fillMaxSize()) {
-                // Logo Mistral en haut à gauche
-                // FIX: assure-toi que res/drawable/mistral_logo.png existe
                 GiantAccessibleButton(
                     isTrackingActive = TrackingManager.isTrackingActive,
                     onClick = {
@@ -91,13 +84,11 @@ fun App() {
                     painter = painterResource(id = R.drawable.mistral_logo),
                     contentDescription = "Logo Mistral AI",
                     modifier = Modifier
-                        .size(64.dp)
-                        .padding(8.dp)
-                        .background(MistralTextWhite, shape = RoundedCornerShape(8.dp)) // fond blanc
+                        .size(80.dp)
                         .align(Alignment.TopStart)
+                        .padding(16.dp)
                 )
 
-                // Bouton géant centré
 
             }
         }
@@ -123,6 +114,10 @@ fun GiantAccessibleButton(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.fillMaxSize()
         ) {
+
+            Spacer(Modifier.height(24.dp))
+
+            // Icône Play / Stop
             Icon(
                 imageVector = if (isTrackingActive) Icons.Default.Stop else Icons.Default.PlayArrow,
                 contentDescription = if (isTrackingActive) "Bouton arrêter le suivi" else "Bouton démarrer le suivi",
@@ -131,6 +126,7 @@ fun GiantAccessibleButton(
 
             Spacer(Modifier.height(24.dp))
 
+            // Texte
             Text(
                 text = if (isTrackingActive) "ARRÊTER" else "DÉMARRER",
                 fontSize = 36.sp,
@@ -143,7 +139,6 @@ fun GiantAccessibleButton(
     }
 }
 
-// FIX: Preview séparé sans dépendances runtime
 @Preview(showBackground = true)
 @Composable
 fun AppPreview() {
@@ -183,9 +178,7 @@ private fun triggerHapticFeedback(context: Context) {
     }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        vibrator.vibrate(
-            VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE)
-        )
+        vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
     } else {
         @Suppress("DEPRECATION")
         vibrator.vibrate(100)

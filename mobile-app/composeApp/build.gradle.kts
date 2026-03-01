@@ -23,6 +23,7 @@ kotlin {
             implementation(libs.androidx.camera.camera2)
             implementation(libs.androidx.camera.lifecycle)
             implementation(libs.androidx.camera.view)
+
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -70,5 +71,7 @@ android {
 
 dependencies {
     debugImplementation(libs.compose.uiTooling)
+    implementation("androidx.compose.material3:material3:1.2.0")
+    implementation("androidx.compose.material:material-icons-extended:1.6.0")
 }
 

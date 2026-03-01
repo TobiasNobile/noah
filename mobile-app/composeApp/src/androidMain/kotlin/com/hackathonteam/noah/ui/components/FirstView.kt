@@ -10,6 +10,7 @@ import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
@@ -130,30 +131,33 @@ fun MainScreen(
                 .padding(32.dp)
         )
 
-        Image(
-            painter = painterResource(id = R.drawable.mistral_logo),
-            contentDescription = "Logo Mistral AI",
+        Row(
             modifier = Modifier
-                .size(80.dp)
-                .align(Alignment.TopStart)
-                .padding(16.dp)
-        )
-
-        // Roue dentée orange, sans fond
-        IconButton(
-            onClick = onNavigateToSettings,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-                .size(48.dp)
-                .semantics { contentDescription = "Open settings" }
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .padding(top = 20.dp, start = 20.dp, end = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = null,
-                tint = MistralOrange,
-                modifier = Modifier.size(32.dp)
+            Image(
+                painter = painterResource(id = R.drawable.mistral_logo),
+                contentDescription = "Logo Mistral AI",
+                modifier = Modifier.size(60.dp)
             )
+
+            IconButton(
+                onClick = onNavigateToSettings,
+                modifier = Modifier
+                    .size(60.dp)
+                    .semantics { contentDescription = "Open settings" }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = null,
+                    tint = MistralOrange,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
         }
     }
 }
@@ -169,12 +173,14 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(35.dp),
         verticalArrangement = Arrangement.Top
     ) {
         Button(
             onClick = onNavigateBack,
-            modifier = Modifier.widthIn(min = 120.dp),
+            modifier = Modifier.widthIn(min = 120.dp).semantics {
+                contentDescription = "Back to home screen button"
+            },
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF2A2A4E),
                 contentColor = MistralTextWhite
@@ -182,7 +188,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.ArrowBack,
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp)
             )
@@ -283,11 +289,14 @@ fun GiantAccessibleButton(
 ) {
     Button(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.semantics {
+            contentDescription = if (isTrackingActive) "Stop tracking" else "Start tracking"
+        },
         colors = ButtonDefaults.buttonColors(
             containerColor = if (isTrackingActive) Color(0xFFCC2200) else MistralOrange,
             contentColor = MistralTextWhite
-        )
+        ),
+
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

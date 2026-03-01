@@ -49,8 +49,6 @@ def userInfo_tool(uuid: str) -> UserInfo:
         uuid (str): The UUID of the user session.
     """
     return retrieve_user_info(uuid)
-    # falseGps = GPS(lat=0.0, lon=0.0, altitude=0.0, accuracy=10000.0)
-    # return UserInfo(gps=falseGps, userState=userState.WALKING)
 
 @tool
 def userInfo_gpsToCity_tool(uuid: str) -> str:
@@ -58,8 +56,54 @@ def userInfo_gpsToCity_tool(uuid: str) -> str:
 
     Args:
         uuid (str): The UUID of the user session."""
-    # TODO: use a geocoding API to convert the GPS coordinates to a city name.
-    return "Paris, La Défense"
+
+    retrievedUserInfo = retrieve_user_info(uuid)
+    if retrievedUserInfo is None:
+        logger.error(f"No user info found for UUID: {uuid}")
+        return "No user info found for this UUID."
+    elif retrievedUserInfo.gps.lat == 0.0 and retrievedUserInfo.gps.lon == 0.0:
+        return "The user is in an unknown location."
+    else:
+        header = {
+            "X-Goog-FieldMask": "places.formattedAddress",
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": os.getenv("GOOGLE_API_KEY")
+        }
+
+        payload = {
+            "locationRestriction": {
+                "circle": {
+                    "center": {
+                        "latitude": retrievedUserInfo.gps.lat,
+                        "longitude": retrievedUserInfo.gps.lon
+                    },
+                    "radius": 20
+                }
+            }
+        }
+
+        response = requests.post(
+            "https://places.googleapis.com/v1/places:searchNearby",
+            json=payload,
+            headers=header
+        )
+
+        if response.status_code == 200:
+            print("Request successful!")
+            print(response.json())
+            jsonResult = response.json()
+
+            if "places" in jsonResult and jsonResult["places"]:
+                if "formattedAddress" in jsonResult["places"][0]:
+                    print("Formatted Address:", jsonResult["places"][0]["formattedAddress"])
+                else:
+                    print("Address not found in the results.")
+            else:
+                print("No places found for the provided GPS coordinates.")
+        else:
+            print(f"Failed to retrieve city information. Status: {response.status_code}")
+            print(response.json())
+
 
 @tool
 def userInfo_gpsGetPlacesAround(uuid: str) -> str:
@@ -72,6 +116,8 @@ def userInfo_gpsGetPlacesAround(uuid: str) -> str:
     if(retrievedUserInfo is None):
         logger.error(f"No user info found for UUID: {uuid}")
         return "No user info found for this UUID."
+    elif retrievedUserInfo.gps.lat == 0.0 and retrievedUserInfo.gps.lon == 0.0:
+        return "The user is in an unknown location."
     else:
         jsonObject = {
             "includedPrimaryTypes": [

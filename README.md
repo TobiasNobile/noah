@@ -30,7 +30,7 @@ Everything is designed to work **eyes closed, hands free.**
 
 ---
 
-## ♿ Accessibility first
+## Accessibility first
 
 Every design decision prioritizes accessibility:
 
@@ -42,22 +42,22 @@ Every design decision prioritizes accessibility:
 
 ---
 
-## 🛠️ Tech stack
+## Tech stack
 
-| Component | Technology |
-|---|---|
-| Platform | Android (Kotlin) |
-| UI | Jetpack Compose |
-| AI | Mistral AI (custom FastAPI backend) |
-| Audio | AudioRecord (PCM-16 mono) |
-| Vision | CameraX |
-| Location | GPS via FusedLocationProvider |
-| Accessibility | TalkBack, TTS, Haptic feedback |
-| Storage | Internal Storage (`getFilesDir()`) |
+| Component | Technology                                                                    |
+|---|-------------------------------------------------------------------------------|
+| Platform | Android (Kotlin)                                                              |
+| UI | Jetpack Compose                                                               |
+| AI | Mistral AI (custom FastAPI backend) --> Pixtral for VLM and Voxtral for voice |
+| Audio | AudioRecord (PCM-16 mono)                                                     |
+| Vision | CameraX                                                                       |
+| Location | GPS via FusedLocationProvider                                                 |
+| Accessibility | TalkBack, TTS, Haptic feedback                                                |
+| Storage | Internal Storage (`getFilesDir()`)                                            |
 
 ---
 
-## 🚀 Installation & Setup
+##  Installation & Setup
 
 ### Prerequisites
 
@@ -90,18 +90,12 @@ On first launch, tap the **gear icon** in the top-right corner to enter your bac
 
 > Default: `localhost:32666`
 
----
 
 ## 👥 Contributors
 
-| Name | Role |
-|---|---|
-| **GoldRen** | Android development |
+| Name | Role                                  |
+|---|---------------------------------------|
+| **GoldRen** | Android development  + Vision model   |
 | **Theo** | Backend architecture & Mistral AI API |
 | **Ayush** | Backend architecture & Mistral AI API |
 
----
-
-## 📄 License
-
-Built at a hackathon. All rights reserved.

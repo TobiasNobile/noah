@@ -65,6 +65,7 @@ Server:
 | Name | Role                                  |
 |---|---------------------------------------|
 | **GoldRen** | Android development  + Vision model   |
-| **Theo** | Backend architecture & Mistral AI API |
+| **Theo** | Android development + Backend architecture & Mistral AI API |
 | **Ayush** | Backend architecture & Mistral AI API |
+| **Harsh** | Backend architecture & Mistral AI API |
 

@@ -1,0 +1,30 @@
+services:
+  noah-backend:
+    build:
+      context: ./back
+      dockerfile: Dockerfile
+      args:
+        PORT: 32666
+        HOST: 0.0.0.0
+    container_name: noah-backend
+    ports:
+      - "32666:32666"
+    environment:
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+      PORT: ${PORT:-32666}
+      HOST: ${HOST:-0.0.0.0}
+      LOG_LEVEL: ${LOG_LEVEL:-DEBUG}
+    env_file:
+      - ./back/.env
+    volumes:
+      - ./back/app:/code/app
+      - ./assets:/code/assets
+    restart: unless-stopped
+    networks:
+      - noah-network
+
+networks:
+  noah-network:
+    driver: bridge

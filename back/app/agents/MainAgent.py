@@ -9,9 +9,9 @@ from langgraph.graph import StateGraph
 from mistralai import Mistral
 from dotenv import load_dotenv
 
-from back.app.config.config import MODEL, INITIAL_PROMPT
-from back.app.network.sessions import ConversationState
-from back.app.tools.tools import tools, tools_by_name
+from ..config.config import MODEL, INITIAL_PROMPT
+from ..network.sessions import ConversationState
+from ..tools.tools import tools, tools_by_name
 
 # Configure logging
 logger = logging.getLogger(__name__)

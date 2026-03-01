@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from langchain_core.tools import tool
 from pydantic import BaseModel
 
-from back.app.dataclass.dataclass import UserInfo
+from ..dataclass.dataclass import UserInfo
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

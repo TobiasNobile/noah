@@ -27,7 +27,7 @@ class AudioProcessor:
         """Add an audio chunk to the buffer."""
         self.audio_buffer.append(chunk)
         self.total_bytes += len(chunk)
-        logger.debug(f"Added audio chunk: {len(chunk)} bytes (total: {self.total_bytes} bytes)")
+        #logger.debug(f"Added audio chunk: {len(chunk)} bytes (total: {self.total_bytes} bytes)")
     
     def get_duration_seconds(self) -> float:
         """Calculate audio duration in seconds."""
@@ -138,3 +138,12 @@ class AudioProcessor:
             "channels": self.CHANNELS,
         }
 
+
+# Store audio processors per session for chunk accumulation
+audio_processors: dict[str, AudioProcessor] = {}
+
+def get_audio_processor(uuid: str) -> AudioProcessor:
+    """Get or create an audio processor for a session."""
+    if uuid not in audio_processors:
+        audio_processors[uuid] = AudioProcessor()
+    return audio_processors[uuid]

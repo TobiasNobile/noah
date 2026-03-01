@@ -9,9 +9,9 @@ from langgraph.graph import StateGraph
 from mistralai import Mistral
 from dotenv import load_dotenv
 
-from back.app.config.config import MODEL, INITIAL_PROMPT
-from back.app.network.sessions import ConversationState
-from back.app.tools.tools import tools, tools_by_name
+from ..config.config import MODEL, INITIAL_PROMPT
+from ..network.sessions import ConversationState
+from ..tools.tools import tools, tools_by_name
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -44,6 +44,10 @@ class MainAgent:
         self.agent = agent_builder.compile()
 
     def generate_graph_image(self):
+        """
+        Generates a visual representation of the agent's state graph and saves it as an image file. The function first attempts to create a PNG image using Mermaid syntax. If that fails, it falls back to saving the graph in Mermaid format as a .mmd file. The generated graph illustrates the flow of states and transitions within the agent's decision-making process.
+        :return: None
+        """
         try:
             graph_image = self.agent.get_graph(xray=True).draw_mermaid_png()
             with open("mainAgent_graph.png", "wb") as f:

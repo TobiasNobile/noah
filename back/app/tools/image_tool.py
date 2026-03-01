@@ -6,7 +6,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.tools import tool
 from langchain_mistralai import ChatMistralAI
 
-from back.app.config.config import IMAGE_MODEL, IMAGE_PROMPT
+from ..config.config import IMAGE_MODEL, IMAGE_PROMPT
 
 load_dotenv()
 

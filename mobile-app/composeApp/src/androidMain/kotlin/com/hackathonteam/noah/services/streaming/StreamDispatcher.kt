@@ -30,21 +30,12 @@ private const val PERIODIC_INTERVAL_MS = 5_000L
 private const val USER_INFO_INTERVAL_MS = 10_000L
 private const val VOICE_ACTIVITY_RMS_THRESHOLD = 800.0
 private const val SILENCE_TIMEOUT_MS = 2_000L
-private const val ANSWER_WAIT_TIMEOUT_MS = 120_000L   // 2 minutes — stop tracking if exceeded
+private const val ANSWER_WAIT_TIMEOUT_MS = 120_000L
 
 object StreamDispatcher {
 
-    // -------------------------------------------------------------------------
-    // Public observable stream (kept for in-app observers / debugging)
-    // -------------------------------------------------------------------------
-
     private val _payloads = MutableSharedFlow<StreamPayload>(extraBufferCapacity = 16)
-
     val payloads: SharedFlow<StreamPayload> = _payloads.asSharedFlow()
-
-    // -------------------------------------------------------------------------
-    // Internal state
-    // -------------------------------------------------------------------------
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
@@ -58,6 +49,9 @@ object StreamDispatcher {
     private var silenceJob: Job? = null
 
     @Volatile private var hasVoiceActivity: Boolean = false
+
+    // --- Interruption de la lecture audio ---
+    @Volatile private var currentAudioTrack: AudioTrack? = null
 
     private val _sessionUuid = MutableStateFlow<String?>(null)
     private var sessionUuid: String?
@@ -123,6 +117,9 @@ object StreamDispatcher {
                 }
 
                 if (isVoiceActivity(pcm)) {
+                    // L'utilisateur parle → interrompre immédiatement le LLM
+                    interruptResponseAudio()
+
                     hasVoiceActivity = true
                     silenceJob?.cancel()
                     silenceJob = scope.launch {
@@ -154,6 +151,8 @@ object StreamDispatcher {
         silenceJob = null
         hasVoiceActivity = false
 
+        interruptResponseAudio()
+
         val uuid = sessionUuid
         if (uuid != null) {
             scope.launch(Dispatchers.IO) {
@@ -166,7 +165,6 @@ object StreamDispatcher {
                     val ok = NoahApiClient.sendAudioChunk(uuid, chunk)
                     if (!ok) Log.w(TAG, "Flush: audio chunk upload failed for uuid=$uuid")
                 }
-                // finishAudio retourne Boolean
                 val ok = NoahApiClient.finishAudio(uuid)
                 if (!ok) Log.w(TAG, "POST /audio/finish failed for uuid=$uuid")
             }
@@ -176,6 +174,32 @@ object StreamDispatcher {
 
         if (resetSession) sessionUuid = null
         Log.d(TAG, "StreamDispatcher stopped (resetSession=$resetSession)")
+    }
+
+    // -------------------------------------------------------------------------
+    // Interruption audio
+    // -------------------------------------------------------------------------
+
+    /**
+     * Stoppe immédiatement la lecture en cours si le LLM est en train de parler.
+     * Appelé dès que la voix de l'utilisateur est détectée.
+     */
+    private fun interruptResponseAudio() {
+        currentAudioTrack?.let { track ->
+            try {
+                if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                    track.pause()
+                    track.flush()
+                    track.stop()
+                    Log.d(TAG, "Response audio interrupted by user voice activity")
+                }
+                track.release()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error interrupting audio track: ${e.message}")
+            } finally {
+                currentAudioTrack = null
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -194,14 +218,12 @@ object StreamDispatcher {
         }
 
         withContext(Dispatchers.IO) {
-            // finishAudio retourne Boolean — on attend le résultat avec timeout
             val ok = withTimeoutOrNull(ANSWER_WAIT_TIMEOUT_MS) {
                 NoahApiClient.finishAudio(uuid)
             }
 
             when {
                 ok == null -> {
-                    // Timed out
                     Log.w(TAG, "LLM answer timed out after ${ANSWER_WAIT_TIMEOUT_MS / 1000}s — stopping tracking")
                     withContext(Dispatchers.Main) {
                         TrackingManager.stopListening()
@@ -268,6 +290,9 @@ object StreamDispatcher {
                 .build()
 
             audioTrack.write(wavBytes, pcmOffset, pcmLength)
+
+            // Enregistrer la référence AVANT de jouer, pour permettre l'interruption
+            currentAudioTrack = audioTrack
             audioTrack.play()
 
             val totalFrames = pcmLength / (bitsPerSample / 8) / channels
@@ -276,8 +301,12 @@ object StreamDispatcher {
                 Thread.sleep(50)
             }
 
-            audioTrack.stop()
-            audioTrack.release()
+            // Libérer seulement si pas déjà interrompu
+            if (currentAudioTrack === audioTrack) {
+                audioTrack.stop()
+                audioTrack.release()
+                currentAudioTrack = null
+            }
             Log.d(TAG, "Response audio playback complete")
         } catch (e: Exception) {
             Log.e(TAG, "Error playing response audio: ${e.message}", e)

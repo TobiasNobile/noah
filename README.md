@@ -98,6 +98,7 @@ On first launch, tap the **gear icon** in the top-right corner to enter your bac
 |---|---|
 | **GoldRen** | Android development |
 | **Theo** | Backend architecture & Mistral AI API |
+| **Ayush** | Backend architecture & Mistral AI API |
 
 ---
 

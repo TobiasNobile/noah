@@ -1,7 +1,106 @@
-# Noah : enabling visually impaires/blind people to interact with their environnement
+# 🦻 Noah — Enpowering visually impaired people
 
-## Use cases
 
-- Enable a visually impaired/blind person to find their way around their environment and complex places such as the underground.
-- Enable illiterate or functionally illiterate people to read a document or text.
+## A brief description
 
+**Noah** is an Android application designed to empower people with visual impairments or literacy challenges. Using the phone's camera, microphone, and GPS, Noah acts as an intelligent companion that perceives the world and speaks back — so that no one is left behind by a world built for sighted, literate people.
+
+Noah is built around one core belief: **technology should adapt to people, not the other way around.**
+
+
+## For which uses ?
+
+### Navigation for the visually impaired
+Blind or visually impaired users can activate Noah and explore their surroundings with confidence. Noah uses real-time camera input and GPS location to describe the environment, identify obstacles, and guide users through complex spaces such as metro stations, shopping centers, or unfamiliar streets — all through natural voice interaction.
+
+###  Reading assistance for illiterate users
+For people who cannot read — whether due to illiteracy, functional illiteracy, or a language barrier — Noah can read any document, sign, or text aloud. Simply point the camera at a page, a label, or a screen, and Noah will read and explain the content in plain spoken language.
+
+
+##  How it works
+
+When the user activates tracking, Noah:
+
+1. **Captures frames** from the camera and sends them to the Mistral AI backend
+2. **Records ambient audio** and streams it for voice interaction
+3. **Tracks GPS position** to provide location-aware context
+4. **Speaks responses** back to the user via Text-to-Speech
+
+Everything is designed to work **eyes closed, hands free.**
+
+---
+
+## ♿ Accessibility first
+
+Every design decision prioritizes accessibility:
+
+- **Giant single button** to start and stop — no complex navigation
+- Full **TalkBack** compatibility (no images used as buttons)
+- **Haptic feedback** on every interaction
+- **Voice confirmation** of every action via TTS
+- Configurable server settings for offline / local deployments
+
+---
+
+## 🛠️ Tech stack
+
+| Component | Technology |
+|---|---|
+| Platform | Android (Kotlin) |
+| UI | Jetpack Compose |
+| AI | Mistral AI (custom FastAPI backend) |
+| Audio | AudioRecord (PCM-16 mono) |
+| Vision | CameraX |
+| Location | GPS via FusedLocationProvider |
+| Accessibility | TalkBack, TTS, Haptic feedback |
+| Storage | Internal Storage (`getFilesDir()`) |
+
+---
+
+## 🚀 Installation & Setup
+
+### Prerequisites
+
+- Android Studio **Hedgehog** or later
+- Android device or emulator running **API 26+**
+- A deployed Noah backend (FastAPI + Mistral AI)
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/your-org/noah-android.git
+cd noah-android
+```
+
+### 2. Open in Android Studio
+
+```
+File > Open > select the project folder
+```
+
+### 3. Run the app
+
+```
+Run > Run 'app'  (or Shift+F10)
+```
+
+### 4. Configure the server
+
+On first launch, tap the **gear icon** in the top-right corner to enter your backend IP address and port. Settings are saved automatically to the device's internal storage.
+
+> Default: `localhost:32666`
+
+---
+
+## 👥 Contributors
+
+| Name | Role |
+|---|---|
+| **GoldRen** | Android development |
+| **Theo** | Backend architecture & Mistral AI API |
+
+---
+
+## 📄 License
+
+Built at a hackathon. All rights reserved.

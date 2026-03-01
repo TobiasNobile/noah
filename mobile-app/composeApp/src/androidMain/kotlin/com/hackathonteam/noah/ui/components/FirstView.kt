@@ -37,8 +37,6 @@ val MistralOrange = Color(0xFFFA500F)
 val MistralDarkBackground = Color(0xFF1A1A2E)
 val MistralTextWhite = Color(0xFFFFFFFF)
 
-// --- Gestion du stockage interne ---
-
 private const val SETTINGS_FILE = "server_settings.txt"
 private const val DEFAULT_IP = "localhost"
 private const val DEFAULT_PORT = "32666"
@@ -59,8 +57,6 @@ fun saveSettings(context: Context, ip: String, port: String) {
     val file = File(context.filesDir, SETTINGS_FILE)
     file.writeText("$ip\n$port")
 }
-
-// --- Navigation simple ---
 
 enum class Screen { MAIN, SETTINGS }
 
@@ -115,7 +111,6 @@ fun MainScreen(
     val context = LocalContext.current
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Bouton principal (tracking)
         GiantAccessibleButton(
             isTrackingActive = TrackingManager.isTrackingActive,
             onClick = {
@@ -133,7 +128,6 @@ fun MainScreen(
                 .padding(32.dp)
         )
 
-        // Logo Mistral en haut à gauche
         Image(
             painter = painterResource(id = R.drawable.mistral_logo),
             contentDescription = "Logo Mistral AI",
@@ -143,32 +137,20 @@ fun MainScreen(
                 .padding(16.dp)
         )
 
-        // Bouton Paramètres en haut à droite
-        Button(
+        // Roue dentée orange, sans fond
+        IconButton(
             onClick = onNavigateToSettings,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(16.dp)
-                .widthIn(min = 120.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF2A2A4E),
-                contentColor = MistralTextWhite
-            ),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                .size(48.dp)
+                .semantics { contentDescription = "Ouvrir les paramètres" }
         ) {
             Icon(
                 imageVector = Icons.Default.Settings,
                 contentDescription = null,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = "Paramètres",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.semantics {
-                    contentDescription = "Ouvrir les paramètres"
-                }
+                tint = MistralOrange,
+                modifier = Modifier.size(32.dp)
             )
         }
     }
@@ -188,11 +170,9 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             .padding(24.dp),
         verticalArrangement = Arrangement.Top
     ) {
-        // Bouton retour
         Button(
             onClick = onNavigateBack,
-            modifier = Modifier
-                .widthIn(min = 120.dp),
+            modifier = Modifier.widthIn(min = 120.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF2A2A4E),
                 contentColor = MistralTextWhite
@@ -225,7 +205,6 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
 
         Spacer(Modifier.height(32.dp))
 
-        // Champ IP
         Text(
             text = "Adresse IP",
             fontSize = 14.sp,
@@ -256,7 +235,6 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
 
         Spacer(Modifier.height(24.dp))
 
-        // Champ Port
         Text(
             text = "Port",
             fontSize = 14.sp,

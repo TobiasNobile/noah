@@ -28,11 +28,12 @@ Use these functions from backend routes:
 
 - `stt_from_file(path: str) -> dict`
 - `tts_to_base64(text: str) -> dict`
+- `tts_to_wav_file(text: str, output_path: str) -> dict`
 
 Example:
 
 ```python
-from integration_adapter import stt_from_file, tts_to_base64
+from integration_adapter import stt_from_file, tts_to_base64, tts_to_wav_file
 
 stt = stt_from_file("temp/cache/audio/<uuid>/last.wav")
 if not stt["ok"]:
@@ -43,12 +44,15 @@ tts = tts_to_base64(answer_text)
 if not tts["ok"]:
     return {"answer": answer_text, **tts}
 
+wav = tts_to_wav_file(answer_text, "./temp/answer.wav")
+
 return {
     "ok": True,
     "transcript": stt["text"],
     "answer": answer_text,
     "answer_audio_base64": tts["audio_base64"],
     "answer_audio_mime": tts["mime"],
+    "answer_audio_wav_path": wav.get("wav_path") if wav.get("ok") else None,
 }
 ```
 
@@ -89,8 +93,10 @@ After running the command, type text and press Enter to hear it.
 ## Smoke test for integration
 
 ```bash
-python -m scripts.smoke_integration --audio ./audio.wav --text "Hello from Noah"
-# or: python scripts/smoke_integration.py --audio ./audio.wav --text "Hello from Noah"
+python -m scripts.smoke_integration --text "Hello from Noah" --save-wav ./out/hello.wav
+# or with STT + TTS: python -m scripts.smoke_integration --audio ./audio.wav --save-wav ./out/from_audio.wav
+# direct script execution is also supported:
+# python scripts/smoke_integration.py --text "Hello" --save-wav ./out/hello.wav
 ```
 
 ## Notes

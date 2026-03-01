@@ -6,7 +6,12 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-from stt_pipeline import STTPipelineError, synthesize_speech_base64, transcribe_audio_file
+from stt_pipeline import (
+    STTPipelineError,
+    synthesize_speech_base64,
+    synthesize_speech_wav_file,
+    transcribe_audio_file,
+)
 
 
 def stt_from_file(path: str, model: str | None = None, language: str | None = None) -> dict[str, Any]:
@@ -50,6 +55,36 @@ def tts_to_base64(
             "ok": True,
             "audio_base64": audio_base64,
             "mime": mime,
+        }
+    except STTPipelineError as exc:
+        return {
+            "ok": False,
+            "error_code": "tts_error",
+            "error_message": str(exc),
+        }
+
+
+def tts_to_wav_file(
+    text: str,
+    output_path: str,
+    voice_id: str | None = None,
+    model_id: str | None = None,
+    output_format: str | None = None,
+) -> dict[str, Any]:
+    """Generate TTS audio and save it as a WAV file."""
+    kwargs: dict[str, str] = {}
+    if voice_id:
+        kwargs["voice_id"] = voice_id
+    if model_id:
+        kwargs["model_id"] = model_id
+    if output_format:
+        kwargs["output_format"] = output_format
+
+    try:
+        saved_path = asyncio.run(synthesize_speech_wav_file(text, Path(output_path), **kwargs))
+        return {
+            "ok": True,
+            "wav_path": str(saved_path),
         }
     except STTPipelineError as exc:
         return {

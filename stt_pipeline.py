@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import os
 import sys
+import wave
 from base64 import b64encode
 from pathlib import Path
 from typing import Any, AsyncIterator
@@ -23,6 +24,14 @@ DEFAULT_BATCH_MODEL = "voxtral-mini-latest"
 DEFAULT_TTS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
 DEFAULT_TTS_MODEL_ID = "eleven_multilingual_v2"
 DEFAULT_TTS_OUTPUT_FORMAT = "pcm_24000"
+
+
+def _sample_rate_from_output_format(output_format: str) -> int:
+    """Extract sample rate from ElevenLabs output format like `pcm_24000`."""
+    try:
+        return int(output_format.split("_")[-1])
+    except (ValueError, IndexError) as exc:
+        raise STTPipelineError(f"Unsupported output_format for WAV conversion: {output_format}") from exc
 
 
 class STTPipelineError(RuntimeError):
@@ -75,12 +84,15 @@ def transcribe_file(client: Mistral, audio_path: Path, model: str, language: str
 
 def transcribe_audio_file(audio_path: Path, model: str | None = None, language: str | None = None) -> str:
     """Transcribe a finalized audio file using Mistral batch STT."""
-    if not audio_path.exists():
-        raise FileNotFoundError(f"Audio file not found: {audio_path}")
+    normalized_path = audio_path.expanduser().resolve(strict=False)
+    if not normalized_path.exists():
+        raise FileNotFoundError(
+            f"Audio file not found: {normalized_path} (cwd: {Path.cwd()})"
+        )
 
     client = build_client()
     resolved_model = model or DEFAULT_BATCH_MODEL
-    return transcribe_file(client, audio_path, resolved_model, language)
+    return transcribe_file(client, normalized_path, resolved_model, language)
 
 
 async def iter_microphone(*, sample_rate: int, chunk_duration_ms: int) -> AsyncIterator[bytes]:
@@ -197,6 +209,37 @@ async def synthesize_speech_base64(
         output_format=output_format,
     )
     return b64encode(audio_data).decode("utf-8")
+
+
+async def synthesize_speech_wav_file(
+    text: str,
+    output_path: Path,
+    voice_id: str = DEFAULT_TTS_VOICE_ID,
+    model_id: str = DEFAULT_TTS_MODEL_ID,
+    output_format: str = DEFAULT_TTS_OUTPUT_FORMAT,
+) -> Path:
+    """Generate speech from text and save it as a WAV file."""
+    if not output_format.startswith("pcm_"):
+        raise STTPipelineError("WAV export requires a PCM output_format such as pcm_24000.")
+
+    sample_rate = _sample_rate_from_output_format(output_format)
+    audio_data = await synthesize_speech_bytes(
+        text=text,
+        voice_id=voice_id,
+        model_id=model_id,
+        output_format=output_format,
+    )
+
+    normalized_output = output_path.expanduser().resolve(strict=False)
+    normalized_output.parent.mkdir(parents=True, exist_ok=True)
+
+    with wave.open(str(normalized_output), "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(audio_data)
+
+    return normalized_output
 
 
 async def text_to_speech_input() -> None:

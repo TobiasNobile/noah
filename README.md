@@ -105,7 +105,7 @@ sudo docker compose down
 
 | Name | Role                                  |
 |---|---------------------------------------|
-| **GoldRen** | Android development  + Vision model   |
+| **Tobias** | Android development  + Vision model   |
 | **Theo** | Android development + Backend architecture & Mistral AI API |
 | **Ayush** | Backend architecture & Mistral AI API |
 | **Harsh** | Backend architecture & Mistral AI API |

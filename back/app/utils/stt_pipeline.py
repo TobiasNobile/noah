@@ -18,7 +18,7 @@ from mistralai.models import (
     TranscriptionStreamDone,
     TranscriptionStreamTextDelta,
 )
-
+# Default Models (See documentation for other options)
 DEFAULT_REALTIME_MODEL = "voxtral-mini-transcribe-realtime-2602"
 DEFAULT_BATCH_MODEL = "voxtral-mini-latest"
 DEFAULT_TTS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
